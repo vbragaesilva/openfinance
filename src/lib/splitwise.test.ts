@@ -2,10 +2,15 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { lerNotificacao } from './splitwise.ts'
 
-test('"Você deve" vira split positivo', () => {
-  assert.deepEqual(lerNotificacao({ titulo: 'Zé adicionou “pizza”', mensagem: 'Você deve BRL 16,25' }), {
-    tipo: 'split', valor_centavos: 1625, nome: 'pizza',
-  })
+test('notificação real do Splitwise: nome vem do título, sem o "(BRL ...)"', () => {
+  assert.deepEqual(
+    lerNotificacao({
+      titulo: 'Ah crlh… (BRL 0,01)',
+      subtitulo: 'Adicionado por José M. em “Maiu”',
+      mensagem: 'Você deve BRL 0,01. Veja seu saldo total →',
+    }),
+    { tipo: 'split', valor_centavos: 1, nome: 'Ah crlh…' },
+  )
 })
 
 test('"Você recebeu de volta" vira split negativo', () => {
@@ -25,7 +30,7 @@ test('acerto de contas e outras notificações não viram split', () => {
 })
 
 test('edição/exclusão fica para revisar, sem criar split', () => {
-  const r = lerNotificacao({ titulo: 'Zé atualizou “pizza”', mensagem: 'Você deve BRL 18,00' })
+  const r = lerNotificacao({ titulo: 'pizza (BRL 18,00)', subtitulo: 'Zé atualizou em “Apê”', mensagem: 'Você deve BRL 18,00' })
   assert.equal(r.tipo, 'revisar')
   assert.equal(r.valor_centavos, 1800)
 })
