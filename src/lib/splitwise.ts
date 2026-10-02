@@ -17,9 +17,10 @@ export type Leitura =
 
 /**
  * Despesas do Splitwise que já estão nos fixos (combinado com o usuário): todo mês a internet
- * entra como "Net" e a faxineira como "Sol". Compara o nome inteiro, então "Netflix" não casa.
+ * entra como "Net" (ou "Claro", quando o José não padroniza) e a faxineira como "Sol".
+ * Compara o nome inteiro, então "Netflix" não casa.
  */
-const NOMES_FIXOS = ['net', 'sol']
+const NOMES_FIXOS = ['net', 'claro', 'sol']
 export const fixoPeloNome = (nome: string): Tipo => (NOMES_FIXOS.includes(nome.trim().toLowerCase()) ? 'Fixo' : 'Variável')
 
 const VALOR = String.raw`(?:BRL|R\$)\s*([\d.]+(?:,\d{1,2})?)`

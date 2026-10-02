@@ -35,10 +35,12 @@ test('edição/exclusão fica para revisar, sem criar split', () => {
   assert.equal(r.valor_centavos, 1800)
 })
 
-test('"Net" e "Sol" (internet e faxineira) entram como Fixo; nomes parecidos não', () => {
+test('"Net"/"Claro" e "Sol" (internet e faxineira) entram como Fixo; nomes parecidos não', () => {
   const ler = (titulo: string) => lerNotificacao({ titulo, mensagem: 'Você deve BRL 23,98' })
   assert.equal((ler('Net (BRL 23,98)') as { fixo: string }).fixo, 'Fixo')
   assert.equal((ler('sol (BRL 85,00)') as { fixo: string }).fixo, 'Fixo')
+  assert.equal((ler('Claro (BRL 23,98)') as { fixo: string }).fixo, 'Fixo')
+  assert.equal((ler('Claro Sp (BRL 23,98)') as { fixo: string }).fixo, 'Variável')
   assert.equal((ler('Netflix (BRL 23,98)') as { fixo: string }).fixo, 'Variável')
   assert.equal((ler('Sol e Mar (BRL 23,98)') as { fixo: string }).fixo, 'Variável')
 })
