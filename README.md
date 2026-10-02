@@ -76,3 +76,12 @@ Para importar direto da planilha em vez disso, use `npm run db:import` com as me
 4. Faça um novo deploy depois de criar as variáveis, porque elas só valem a partir do próximo deploy.
 
 Sem `APP_PASSWORD`/`SESSION_SECRET` a API em produção recusa tudo, ou seja, o app não fica aberto por engano. A sessão dura 90 dias. Para derrubar todas as sessões, troque o `SESSION_SECRET`.
+
+## Lançar pelos Atalhos do iPhone
+
+Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API_TOKEN>` além do login normal.
+
+- `POST https://openmoney.netlify.app/api/lancamentos` com JSON `{"valor": "R$ 16,50", "produto": "...", "local": "...", "modalidade": "credito", "categoria": "Comida"}`
+- `POST https://openmoney.netlify.app/api/split` com JSON `{"valor": "-68,44", "nome": "..."}`
+
+`valor` aceita o formato do iPhone ("R$ 16,50", "1.234,56", -5.9). `data` ausente = hoje; `tipo`/`fixo` ausente = Variável; "credito"/"debito"/"fixo"/"variavel" podem vir sem acento. A resposta traz `mensagem` (ex.: "Lançado: R$ 16,50 · iFood (Crédito) · 01/10/2026") para o atalho mostrar.

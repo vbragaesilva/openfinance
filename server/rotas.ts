@@ -1,6 +1,7 @@
 import type { InStatement, Row } from '@libsql/client/web'
 import { db } from './db.ts'
 import { cookieLogout, login, modoAuth, sessaoValida } from './auth.ts'
+import { brl, lerValor } from '../src/lib/formato.ts'
 import type { Dados, Recurso } from '../src/lib/tipos.ts'
 
 type Campo =
@@ -54,6 +55,45 @@ class ErroHttp extends Error {
     super(msg)
     this.status = status
   }
+}
+
+/** Data de hoje em São Paulo (AAAA-MM-DD). */
+const hojeSP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+
+/**
+ * Deixa um lançamento/split vindo dos Atalhos do iPhone no formato da API. O app já manda tudo
+ * certinho; isto só completa o que o atalho não tem como mandar fácil:
+ *  - `valor` como no iPhone ("R$ 16,50", "16.5", -5.9) em vez de `valor_centavos`;
+ *  - `data` ausente = hoje;
+ *  - "credito"/"debito"/"fixo"/"variavel" sem acento ou em minúsculas;
+ *  - tipo/fixo ausente = Variável (ausente, não `null`: o app usa `null` para "sem tipo").
+ */
+function normalizarEntrada(recurso: Recurso, item: unknown): unknown {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return item
+  const o = { ...(item as Record<string, unknown>) }
+  if (o.valor_centavos === undefined && o.valor !== undefined) {
+    const v = o.valor
+    const c = typeof v === 'number' ? Math.round(v * 100) : typeof v === 'string' ? lerValor(v.replace(/[^\d,.-]/g, '')) : null
+    if (c == null) throw new ErroHttp(400, `Valor inválido: ${JSON.stringify(v)}`)
+    o.valor_centavos = c
+  }
+  delete o.valor
+  if (o.data === undefined || o.data === '') o.data = hojeSP()
+  const campoTipo = recurso === 'lancamentos' ? 'tipo' : 'fixo'
+  if (o[campoTipo] === undefined) o[campoTipo] = 'Variável'
+  else if (typeof o[campoTipo] === 'string') {
+    const t = semAcento(o[campoTipo] as string)
+    if (t === 'fixo') o[campoTipo] = 'Fixo'
+    else if (t === 'variavel') o[campoTipo] = 'Variável'
+  }
+  if (recurso === 'lancamentos' && typeof o.modalidade === 'string') {
+    const m = semAcento(o.modalidade)
+    if (m === 'credito') o.modalidade = 'Crédito'
+    else if (m === 'debito') o.modalidade = 'Débito'
+  }
+  return o
 }
 
 /** Data/hora local de São Paulo no mesmo formato do "Carimbo de data/hora" do Forms. */
@@ -253,13 +293,22 @@ async function rotear(req: Request): Promise<Response> {
   if (recurso in RECURSOS) {
     if (partes.length === 1 && metodo === 'POST') {
       const corpo = await corpoJson(req)
-      const itens = Array.isArray(corpo) ? corpo : [corpo]
+      const itens = (Array.isArray(corpo) ? corpo : [corpo]).map((i) => normalizarEntrada(recurso, i))
       if (itens.length === 0 || itens.length > 60) throw new ErroHttp(400, 'Envie de 1 a 60 itens')
       const rs = await db().batch(
         itens.map((i) => linhaParaInsert(recurso, i)),
         'write',
       )
-      return json({ ids: rs.map((r) => Number(r.lastInsertRowid)) }, 201)
+      // `mensagem` é para o atalho mostrar no iPhone.
+      const primeiro = itens[0] as Record<string, unknown>
+      const descricao = recurso === 'lancamentos' ? `${primeiro.produto || primeiro.local || ''} (${primeiro.modalidade})` : String(primeiro.nome ?? '')
+      return json(
+        {
+          ids: rs.map((r) => Number(r.lastInsertRowid)),
+          mensagem: `${recurso === 'split' ? 'Split lançado' : 'Lançado'}: ${brl(Number(primeiro.valor_centavos))} · ${descricao.trim()} · ${String(primeiro.data).split('-').reverse().join('/')}`,
+        },
+        201,
+      )
     }
     const id = Number(partes[1])
     if (partes.length === 2 && Number.isInteger(id)) {

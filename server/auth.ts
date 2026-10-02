@@ -42,10 +42,19 @@ function lerCookie(req: Request, nome: string) {
   return null
 }
 
+/** `Authorization: Bearer <API_TOKEN>` — usado pelos Atalhos do iPhone, que não guardam o cookie de login. */
+function tokenApiValido(req: Request) {
+  const esperado = process.env.API_TOKEN
+  const header = req.headers.get('authorization') ?? ''
+  if (!esperado || !header.startsWith('Bearer ')) return false
+  return iguais(header.slice('Bearer '.length).trim(), esperado)
+}
+
 export async function sessaoValida(req: Request): Promise<boolean> {
   const modo = modoAuth()
   if (modo.tipo === 'aberto') return true
   if (modo.tipo !== 'senha') return false
+  if (tokenApiValido(req)) return true
   const token = lerCookie(req, COOKIE)
   if (!token) return false
   const [exp, assinatura] = token.split('.')
