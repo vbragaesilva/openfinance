@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.netlify/
+.env
+local.db*
+# dados pessoais: não versionar a planilha
+*.xlsx
