@@ -115,8 +115,10 @@ export function Painel() {
   )
   const [abrirNumeros] = useState(() => matchMedia('(min-width: 760px)').matches)
 
+  const mesPassado = hoje.ano * 12 + hoje.mes > r.ano * 12 + r.mes
+  // Mês passado aparece como "dia 31 de 31" riscado.
   const quando =
-    r.diaAtual === 0 ? 'mês futuro' : r.diaAtual === r.dias && (hoje.ano * 12 + hoje.mes > r.ano * 12 + r.mes) ? 'mês fechado' : `dia ${r.diaAtual} de ${r.dias}`
+    r.diaAtual === 0 ? 'mês futuro' : mesPassado ? <s>dia {r.dias} de {r.dias}</s> : `dia ${r.diaAtual} de ${r.dias}`
 
   return (
     <div className="pagina">
