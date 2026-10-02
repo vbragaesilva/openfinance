@@ -1396,3 +1396,12 @@ details.cartao:not([open]) > summary::after {
   flex: 1;
   padding: 10px 0;
 }
+
+/* Excedente até hoje: vermelho quando negativo, verde quando positivo. */
+.valor-neg {
+  color: var(--critico-texto);
+}
+
+.valor-pos {
+  color: var(--bom-texto);
+}

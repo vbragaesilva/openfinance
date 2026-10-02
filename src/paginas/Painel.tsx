@@ -128,7 +128,11 @@ export function Painel() {
       <section className="cartao heroi">
         <div className="heroi-numero">
           <span className="rotulo">Excedente até hoje</span>
-          <Dinheiro centavos={r.excedenteHoje} className="numero-heroi" />
+          <Dinheiro
+            centavos={r.excedenteHoje}
+            // Sinal pelo valor arredondado, para "R$ 0,00" não sair colorido.
+            className={`numero-heroi ${Math.round(r.excedenteHoje) < 0 ? 'valor-neg' : Math.round(r.excedenteHoje) > 0 ? 'valor-pos' : ''}`}
+          />
           <span className="mudo">
             Ideal até ontem {brl(r.atualIdeal)} − gasto {brl(r.gasto)}
           </span>
