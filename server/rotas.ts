@@ -232,8 +232,9 @@ async function registrarAtalho(req: Request, caminho: string, corpo: string | nu
 export async function handle(req: Request): Promise<Response> {
   const caminho = new URL(req.url).pathname
   const via = req.headers.get('authorization') ? 'token' : req.headers.get('cookie') ? 'cookie' : 'sem auth'
-  // Dos atalhos (chamadas com Authorization) guardamos o corpo exato que chegou, para depurar.
-  const corpoAtalho = via === 'token' ? await req.clone().text().catch(() => null) : null
+  // Corpo exato de tudo que não vem da tela do app (atalhos, com ou sem chave), para depurar.
+  const deFora = via !== 'cookie' && req.method !== 'GET'
+  const corpoAtalho = deFora ? await req.clone().text().catch(() => null) : null
 
   let resposta: Response
   try {
@@ -250,8 +251,8 @@ export async function handle(req: Request): Promise<Response> {
   const textoResposta = resposta.status >= 400 || via === 'token' ? await resposta.clone().text() : ''
   const erro = resposta.status >= 400 ? `: ${textoResposta.slice(0, 300)}` : ''
   console.log(`${req.method} ${caminho} -> ${resposta.status} (${via})${erro}`)
+  if (deFora) console.log(`  corpo recebido: ${corpoAtalho?.slice(0, 2000) ?? '(ilegível)'}`)
   if (via === 'token') {
-    console.log(`  corpo recebido: ${corpoAtalho?.slice(0, 2000) ?? '(ilegível)'}`)
     // Só grava no banco com a chave certa, para ninguém conseguir encher a tabela de lixo.
     if (tokenApiValido(req)) {
       await registrarAtalho(req, caminho, corpoAtalho, resposta.status, textoResposta).catch((e) =>
