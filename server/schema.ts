@@ -60,6 +60,19 @@ export const SCHEMA: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS fixos_pagamentos_fixo ON fixos_pagamentos (fixo_id, data)`,
 
+  // Notificações do Splitwise repassadas pelo atalho do iPhone, guardadas cruas.
+  // status: 'split' (virou o split `split_id`), 'ignorada' ou 'revisar'.
+  `CREATE TABLE IF NOT EXISTS notificacoes (
+    id INTEGER PRIMARY KEY,
+    recebida_em TEXT NOT NULL,
+    titulo TEXT,
+    subtitulo TEXT,
+    mensagem TEXT,
+    status TEXT NOT NULL,
+    motivo TEXT,
+    split_id INTEGER
+  )`,
+
   // "Caixa Atual" (saldo da conta) que era digitado à mão em cada bloco de mês do PAINEL.
   `CREATE TABLE IF NOT EXISTS caixa_mensal (
     ano INTEGER NOT NULL,

@@ -85,3 +85,7 @@ Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API
 - `POST https://openmoney.netlify.app/api/split` com JSON `{"valor": "-68,44", "nome": "..."}`
 
 `valor` aceita o formato do iPhone ("R$ 16,50", "1.234,56", -5.9). `data` ausente = hoje; `tipo`/`fixo` ausente = Variável; "credito"/"debito"/"fixo"/"variavel" podem vir sem acento. A resposta traz `mensagem` (ex.: "Lançado: R$ 16,50 · iFood (Crédito) · 01/10/2026") para o atalho mostrar.
+
+### Splitwise por notificação (iOS 27)
+
+Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira split positivo, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado. Toda notificação é salva crua na tabela `notificacoes`, com o status e o split criado.

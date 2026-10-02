@@ -2,6 +2,7 @@ import type { InStatement, Row } from '@libsql/client/web'
 import { db } from './db.ts'
 import { cookieLogout, login, modoAuth, sessaoValida } from './auth.ts'
 import { brl, lerValor } from '../src/lib/formato.ts'
+import { lerNotificacao } from '../src/lib/splitwise.ts'
 import type { Dados, Recurso } from '../src/lib/tipos.ts'
 
 type Campo =
@@ -272,6 +273,39 @@ async function rotear(req: Request): Promise<Response> {
   }
 
   if (partes[0] === 'fixos') return rotasFixos(req, partes.slice(1))
+
+  // Notificação do Splitwise vinda do atalho do iPhone: guarda crua e, se entender, cria o split.
+  if (partes[0] === 'split' && partes[1] === 'notificacao' && metodo === 'POST') {
+    const c = (await corpoJson(req)) as Record<string, unknown>
+    const texto = (k: string) => (typeof c[k] === 'string' ? (c[k] as string) : c[k] == null ? '' : String(c[k]))
+    const n = { titulo: texto('titulo'), subtitulo: texto('subtitulo'), mensagem: texto('mensagem') }
+    const leitura = lerNotificacao(n)
+    const agora = agoraSP()
+    const registro = (status: string, motivo: string | null, comSplit: boolean): InStatement => ({
+      sql: `INSERT INTO notificacoes (recebida_em, titulo, subtitulo, mensagem, status, motivo, split_id)
+            VALUES (?, ?, ?, ?, ?, ?, ${comSplit ? 'last_insert_rowid()' : 'NULL'})`,
+      args: [agora, n.titulo, n.subtitulo, n.mensagem, status, motivo],
+    })
+    if (leitura.tipo === 'split') {
+      const data = agora.slice(0, 10)
+      await db().batch(
+        [
+          {
+            sql: `INSERT INTO split (criado_em, data, nome, valor_centavos, fixo) VALUES (?, ?, ?, ?, 'Variável')`,
+            args: [agora, data, leitura.nome, leitura.valor_centavos],
+          },
+          registro('split', null, true),
+        ],
+        'write',
+      )
+      return json(
+        { mensagem: `Split lançado: ${brl(leitura.valor_centavos)} · ${leitura.nome} · ${data.split('-').reverse().join('/')}` },
+        201,
+      )
+    }
+    await db().execute(registro(leitura.tipo, leitura.motivo, false))
+    return json({ mensagem: `Notificação do Splitwise guardada, sem virar split (${leitura.motivo}).` }, 202)
+  }
 
   if (partes[0] === 'pagamentos' && partes.length === 2 && metodo === 'DELETE') {
     const rs = await db().execute({ sql: 'DELETE FROM fixos_pagamentos WHERE id = ?', args: [Number(partes[1])] })
