@@ -73,6 +73,19 @@ export const SCHEMA: string[] = [
     split_id INTEGER
   )`,
 
+  // Toda chamada feita com a chave dos atalhos do iPhone, com o corpo exato recebido e a resposta.
+  // Serve para depurar os atalhos. O cabeçalho Authorization nunca é gravado.
+  `CREATE TABLE IF NOT EXISTS log_atalhos (
+    id INTEGER PRIMARY KEY,
+    recebida_em TEXT NOT NULL,
+    metodo TEXT NOT NULL,
+    caminho TEXT NOT NULL,
+    status INTEGER NOT NULL,
+    cabecalhos TEXT,
+    corpo TEXT,
+    resposta TEXT
+  )`,
+
   // "Caixa Atual" (saldo da conta) que era digitado à mão em cada bloco de mês do PAINEL.
   `CREATE TABLE IF NOT EXISTS caixa_mensal (
     ano INTEGER NOT NULL,

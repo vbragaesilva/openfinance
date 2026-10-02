@@ -1,6 +1,6 @@
 import type { InStatement, Row } from '@libsql/client/web'
 import { db } from './db.ts'
-import { cookieLogout, login, modoAuth, sessaoValida } from './auth.ts'
+import { cookieLogout, login, modoAuth, sessaoValida, tokenApiValido } from './auth.ts'
 import { brl, lerValor } from '../src/lib/formato.ts'
 import { lerNotificacao } from '../src/lib/splitwise.ts'
 import type { Dados, Recurso } from '../src/lib/tipos.ts'
@@ -209,22 +209,54 @@ async function corpoJson(req: Request): Promise<unknown> {
   }
 }
 
+const LIMITE_LOG = 20_000
+
+/** Guarda no banco uma chamada feita com a chave dos atalhos (nunca o cabeçalho Authorization). */
+async function registrarAtalho(req: Request, caminho: string, corpo: string | null, status: number, resposta: string) {
+  const cabecalhos = Object.fromEntries(
+    ['content-type', 'user-agent', 'content-length'].flatMap((h) => {
+      const v = req.headers.get(h)
+      return v == null ? [] : [[h, v]]
+    }),
+  )
+  await db().execute({
+    sql: `INSERT INTO log_atalhos (recebida_em, metodo, caminho, status, cabecalhos, corpo, resposta)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [agoraSP(), req.method, caminho, status, JSON.stringify(cabecalhos), corpo?.slice(0, LIMITE_LOG) ?? null, resposta.slice(0, LIMITE_LOG)],
+  })
+}
+
 export async function handle(req: Request): Promise<Response> {
   const caminho = new URL(req.url).pathname
-  // Uma linha por requisição nos logs da Netlify (sem corpo nem cabeçalhos, para não vazar a chave).
   const via = req.headers.get('authorization') ? 'token' : req.headers.get('cookie') ? 'cookie' : 'sem auth'
+  // Dos atalhos (chamadas com Authorization) guardamos o corpo exato que chegou, para depurar.
+  const corpoAtalho = via === 'token' ? await req.clone().text().catch(() => null) : null
+
+  let resposta: Response
   try {
-    const resposta = await rotear(req)
-    console.log(`${req.method} ${caminho} -> ${resposta.status} (${via})`)
-    return resposta
+    resposta = await rotear(req)
   } catch (e) {
-    if (e instanceof ErroHttp) {
-      console.log(`${req.method} ${caminho} -> ${e.status} (${via}): ${e.message}`)
-      return json({ erro: e.message }, e.status)
+    if (e instanceof ErroHttp) resposta = json({ erro: e.message }, e.status)
+    else {
+      console.error(`${req.method} ${caminho} -> 500 (${via})`, e)
+      resposta = json({ erro: 'Erro interno' }, 500)
     }
-    console.error(`${req.method} ${caminho} -> 500 (${via})`, e)
-    return json({ erro: 'Erro interno' }, 500)
   }
+
+  // Uma linha por requisição nos logs da Netlify (nunca com cabeçalhos, para não vazar a chave).
+  const textoResposta = resposta.status >= 400 || via === 'token' ? await resposta.clone().text() : ''
+  const erro = resposta.status >= 400 ? `: ${textoResposta.slice(0, 300)}` : ''
+  console.log(`${req.method} ${caminho} -> ${resposta.status} (${via})${erro}`)
+  if (via === 'token') {
+    console.log(`  corpo recebido: ${corpoAtalho?.slice(0, 2000) ?? '(ilegível)'}`)
+    // Só grava no banco com a chave certa, para ninguém conseguir encher a tabela de lixo.
+    if (tokenApiValido(req)) {
+      await registrarAtalho(req, caminho, corpoAtalho, resposta.status, textoResposta).catch((e) =>
+        console.error('Falha ao gravar log_atalhos', e),
+      )
+    }
+  }
+  return resposta
 }
 
 async function rotear(req: Request): Promise<Response> {
