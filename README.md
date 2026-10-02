@@ -89,3 +89,7 @@ Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API
 ### Splitwise por notificação (iOS 27)
 
 Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira split positivo, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado. Toda notificação é salva crua na tabela `notificacoes`, com o status e o split criado.
+
+### Nubank por notificação (em coleta)
+
+Automação "Ao receber notificação do Nubank" → `POST /api/lancamentos/notificacao` com `{"titulo", "subtitulo", "mensagem"}`. Por enquanto só guarda na tabela `notificacoes_nubank` (JSON exato em `corpo`), sem criar lançamento. `npm run db:nubank` mostra as capturadas. O leitor será escrito com base nas notificações reais.

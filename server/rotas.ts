@@ -310,6 +310,24 @@ async function rotear(req: Request): Promise<Response> {
 
   if (partes[0] === 'fixos') return rotasFixos(req, partes.slice(1))
 
+  // Notificação do Nubank vinda do atalho do iPhone. Fase de coleta: só guarda, não lança nada.
+  if (partes[0] === 'lancamentos' && partes[1] === 'notificacao' && metodo === 'POST') {
+    const bruto = await req.text()
+    let c: Record<string, unknown> = {}
+    try {
+      const v = JSON.parse(bruto)
+      if (v && typeof v === 'object' && !Array.isArray(v)) c = v as Record<string, unknown>
+    } catch {
+      // Guarda mesmo se não for JSON válido: o corpo cru é o que interessa nesta fase.
+    }
+    const campo = (k: string) => (c[k] == null ? null : String(c[k]))
+    await db().execute({
+      sql: `INSERT INTO notificacoes_nubank (recebida_em, titulo, subtitulo, mensagem, corpo) VALUES (?, ?, ?, ?, ?)`,
+      args: [agoraSP(), campo('titulo'), campo('subtitulo'), campo('mensagem'), bruto.slice(0, 20_000)],
+    })
+    return json({ mensagem: 'Notificação do Nubank guardada (ainda não vira lançamento).' }, 202)
+  }
+
   // Notificação do Splitwise vinda do atalho do iPhone: guarda crua e, se entender, cria o split.
   if (partes[0] === 'split' && partes[1] === 'notificacao' && metodo === 'POST') {
     const c = (await corpoJson(req)) as Record<string, unknown>

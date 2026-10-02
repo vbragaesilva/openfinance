@@ -73,6 +73,20 @@ export const SCHEMA: string[] = [
     split_id INTEGER
   )`,
 
+  // Notificações do Nubank repassadas pelo atalho do iPhone. Por enquanto só capturadas (sem
+  // virar lançamento): servem para conhecer o formato antes de escrever o leitor.
+  // `corpo` é o JSON exato recebido, caso o atalho mande mais campos que título/subtítulo/mensagem.
+  `CREATE TABLE IF NOT EXISTS notificacoes_nubank (
+    id INTEGER PRIMARY KEY,
+    recebida_em TEXT NOT NULL,
+    titulo TEXT,
+    subtitulo TEXT,
+    mensagem TEXT,
+    corpo TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'capturada',
+    lancamento_id INTEGER
+  )`,
+
   // Toda chamada feita com a chave dos atalhos do iPhone, com o corpo exato recebido e a resposta.
   // Serve para depurar os atalhos. O cabeçalho Authorization nunca é gravado.
   `CREATE TABLE IF NOT EXISTS log_atalhos (
