@@ -52,12 +52,24 @@ export interface CaixaMensal {
   valor_centavos: number
 }
 
+/** Notificação do Splitwise que não virou split sozinha (status 'ignorada' ou 'revisar'). */
+export interface NotificacaoPendente {
+  id: number
+  recebida_em: string
+  titulo: string | null
+  subtitulo: string | null
+  mensagem: string | null
+  status: 'ignorada' | 'revisar'
+  motivo: string | null
+}
+
 export interface Dados {
   lancamentos: Lancamento[]
   split: SplitItem[]
   fixos: Fixo[]
   salarios: Vigencia[] // ordenado por `desde`
   caixa: CaixaMensal[]
+  notificacoes: NotificacaoPendente[]
 }
 
 export type Recurso = 'lancamentos' | 'split'

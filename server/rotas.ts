@@ -165,7 +165,7 @@ function paraObjeto(row: Row): Record<string, unknown> {
 }
 
 async function carregarDados(): Promise<Dados> {
-  const [lancamentos, split, fixos, valores, pagamentos, salarios, caixa] = await db().batch(
+  const [lancamentos, split, fixos, valores, pagamentos, salarios, caixa, notificacoes] = await db().batch(
     [
       `SELECT * FROM lancamentos ORDER BY ${RECURSOS.lancamentos.ordem}`,
       `SELECT * FROM split ORDER BY ${RECURSOS.split.ordem}`,
@@ -174,6 +174,8 @@ async function carregarDados(): Promise<Dados> {
       'SELECT * FROM fixos_pagamentos ORDER BY fixo_id, data, id',
       'SELECT * FROM salarios ORDER BY desde',
       'SELECT * FROM caixa_mensal ORDER BY ano, mes',
+      `SELECT id, recebida_em, titulo, subtitulo, mensagem, status, motivo FROM notificacoes
+       WHERE status IN ('ignorada', 'revisar') ORDER BY id DESC LIMIT 50`,
     ],
     'read',
   )
@@ -191,6 +193,7 @@ async function carregarDados(): Promise<Dados> {
     })),
     salarios: linhas(salarios),
     caixa: linhas(caixa),
+    notificacoes: linhas(notificacoes),
   }
 }
 
@@ -337,6 +340,15 @@ async function rotear(req: Request): Promise<Response> {
     }
     await db().execute(registro(leitura.tipo, leitura.motivo, false))
     return json({ mensagem: `Notificação do Splitwise guardada, sem virar split (${leitura.motivo}).` }, 202)
+  }
+
+  // Notificação revisada na tela Split: 'resolvida' (virou split à mão) ou 'descartada'.
+  if (partes[0] === 'notificacoes' && partes.length === 2 && metodo === 'PUT') {
+    const c = (await corpoJson(req)) as Record<string, unknown>
+    const status = validar('status', { t: 'enum', valores: ['resolvida', 'descartada'] }, c.status)
+    const rs = await db().execute({ sql: 'UPDATE notificacoes SET status = ? WHERE id = ?', args: [status, Number(partes[1])] })
+    if (rs.rowsAffected === 0) throw new ErroHttp(404, 'Não encontrado')
+    return json({ ok: true })
   }
 
   if (partes[0] === 'pagamentos' && partes.length === 2 && metodo === 'DELETE') {

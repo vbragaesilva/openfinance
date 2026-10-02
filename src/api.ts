@@ -35,6 +35,8 @@ export const api = {
   apagarFixo: (id: number) => req<{ ok: true }>('DELETE', `fixos/${id}`),
   pagarFixo: (id: number, data: string) => req<{ ok: true }>('POST', `fixos/${id}/pagamentos`, { data }),
   apagarPagamento: (id: number) => req<{ ok: true }>('DELETE', `pagamentos/${id}`),
+  resolverNotificacao: (id: number, status: 'resolvida' | 'descartada') =>
+    req<{ ok: true }>('PUT', `notificacoes/${id}`, { status }),
   caixa: (ano: number, mes: number, valor_centavos: number | null) =>
     req<{ ok: true }>('PUT', `caixa/${ano}/${mes}`, { valor_centavos }),
 }

@@ -26,7 +26,7 @@ const fixo = (nome: string, valor: number, extra: Partial<Fixo> = {}): Fixo => (
 
 function dados(parcial: Partial<Dados>): Dados {
   return {
-    lancamentos: [], split: [], caixa: [],
+    lancamentos: [], split: [], caixa: [], notificacoes: [],
     salarios: [{ desde: '2026-04', valor_centavos: 400000 }],
     // Restante = 4000 - 3100 = 900; em setembro (30 dias) o ideal diário é 30,00.
     fixos: [fixo('Aluguel', 110000), fixo('Invest', 200000, { investimento: true })],
