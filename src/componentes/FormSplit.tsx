@@ -7,7 +7,7 @@ import { AcoesForm, Campo, CampoValor, Erro, Segmentado } from './ui.tsx'
 export function FormSplit(props: {
   item?: SplitItem
   /** Valores iniciais de um split novo (ex.: vindos de uma notificação do Splitwise). */
-  inicial?: { data?: string; nome?: string; valor_centavos?: number }
+  inicial?: { data?: string; nome?: string; valor_centavos?: number; fixo?: Tipo }
   /** Chamado depois de criar um split novo. */
   onCriado?: () => Promise<void>
   onPronto: () => void
@@ -17,7 +17,7 @@ export function FormSplit(props: {
   const [data, setData] = useState(s?.data ?? props.inicial?.data ?? hojeISO())
   const [nome, setNome] = useState(s?.nome ?? props.inicial?.nome ?? '')
   const [valor, setValor] = useState<number | null>(s?.valor_centavos ?? props.inicial?.valor_centavos ?? null)
-  const [fixo, setFixo] = useState<Tipo>(s?.fixo ?? 'Variável')
+  const [fixo, setFixo] = useState<Tipo>(s?.fixo ?? props.inicial?.fixo ?? 'Variável')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 

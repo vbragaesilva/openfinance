@@ -345,15 +345,17 @@ async function rotear(req: Request): Promise<Response> {
       await db().batch(
         [
           {
-            sql: `INSERT INTO split (criado_em, data, nome, valor_centavos, fixo) VALUES (?, ?, ?, ?, 'Variável')`,
-            args: [agora, data, leitura.nome, leitura.valor_centavos],
+            sql: `INSERT INTO split (criado_em, data, nome, valor_centavos, fixo) VALUES (?, ?, ?, ?, ?)`,
+            args: [agora, data, leitura.nome, leitura.valor_centavos, leitura.fixo],
           },
           registro('split', null, true),
         ],
         'write',
       )
       return json(
-        { mensagem: `Split lançado: ${brl(leitura.valor_centavos)} · ${leitura.nome} · ${data.split('-').reverse().join('/')}` },
+        {
+          mensagem: `Split lançado: ${brl(leitura.valor_centavos)} · ${leitura.nome}${leitura.fixo === 'Fixo' ? ' (Fixo)' : ''} · ${data.split('-').reverse().join('/')}`,
+        },
         201,
       )
     }

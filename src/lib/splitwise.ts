@@ -3,6 +3,7 @@
 //   "Você deve BRL 16,25"              -> split positivo (gasto)
 //   "Você recebeu de volta BRL 20,00"  -> split negativo (vou receber)
 import { lerValor } from './formato.ts'
+import type { Tipo } from './tipos.ts'
 
 export interface Notificacao {
   titulo?: string
@@ -11,8 +12,15 @@ export interface Notificacao {
 }
 
 export type Leitura =
-  | { tipo: 'split'; valor_centavos: number; nome: string }
-  | { tipo: 'ignorada' | 'revisar'; motivo: string; valor_centavos?: number; nome?: string }
+  | { tipo: 'split'; valor_centavos: number; nome: string; fixo: Tipo }
+  | { tipo: 'ignorada' | 'revisar'; motivo: string; valor_centavos?: number; nome?: string; fixo?: Tipo }
+
+/**
+ * Despesas do Splitwise que já estão nos fixos (combinado com o usuário): todo mês a internet
+ * entra como "Net" e a faxineira como "Sol". Compara o nome inteiro, então "Netflix" não casa.
+ */
+const NOMES_FIXOS = ['net', 'sol']
+export const fixoPeloNome = (nome: string): Tipo => (NOMES_FIXOS.includes(nome.trim().toLowerCase()) ? 'Fixo' : 'Variável')
 
 const VALOR = String.raw`(?:BRL|R\$)\s*([\d.]+(?:,\d{1,2})?)`
 const DEVE = new RegExp(String.raw`voc[eê]\s+deve\s*:?\s*${VALOR}`, 'i')
@@ -42,6 +50,7 @@ export function lerNotificacao(n: Notificacao): Leitura {
   if (centavos == null) return { tipo: 'revisar', motivo: `valor ilegível: ${m[1]}` }
   const valor_centavos = deve ? centavos : -centavos
   const nome = nomeDaDespesa(n)
-  if (EDICAO.test(texto)) return { tipo: 'revisar', motivo: 'parece edição/exclusão de despesa', valor_centavos, nome }
-  return { tipo: 'split', valor_centavos, nome }
+  const fixo = fixoPeloNome(nome)
+  if (EDICAO.test(texto)) return { tipo: 'revisar', motivo: 'parece edição/exclusão de despesa', valor_centavos, nome, fixo }
+  return { tipo: 'split', valor_centavos, nome, fixo }
 }

@@ -130,7 +130,7 @@ export function Split() {
                 const l = lerNotificacao({
                   titulo: daNotificacao.titulo ?? '', subtitulo: daNotificacao.subtitulo ?? '', mensagem: daNotificacao.mensagem ?? '',
                 })
-                return { nome: l.nome, valor_centavos: l.valor_centavos }
+                return { nome: l.nome, valor_centavos: l.valor_centavos, fixo: l.fixo }
               })(),
             }}
             onCriado={() => salvar(() => api.resolverNotificacao(daNotificacao.id, 'resolvida'))}
