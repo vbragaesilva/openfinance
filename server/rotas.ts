@@ -209,11 +209,19 @@ async function corpoJson(req: Request): Promise<unknown> {
 }
 
 export async function handle(req: Request): Promise<Response> {
+  const caminho = new URL(req.url).pathname
+  // Uma linha por requisição nos logs da Netlify (sem corpo nem cabeçalhos, para não vazar a chave).
+  const via = req.headers.get('authorization') ? 'token' : req.headers.get('cookie') ? 'cookie' : 'sem auth'
   try {
-    return await rotear(req)
+    const resposta = await rotear(req)
+    console.log(`${req.method} ${caminho} -> ${resposta.status} (${via})`)
+    return resposta
   } catch (e) {
-    if (e instanceof ErroHttp) return json({ erro: e.message }, e.status)
-    console.error(e)
+    if (e instanceof ErroHttp) {
+      console.log(`${req.method} ${caminho} -> ${e.status} (${via}): ${e.message}`)
+      return json({ erro: e.message }, e.status)
+    }
+    console.error(`${req.method} ${caminho} -> 500 (${via})`, e)
     return json({ erro: 'Erro interno' }, 500)
   }
 }
