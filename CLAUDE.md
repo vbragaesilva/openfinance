@@ -4,7 +4,7 @@ App de gastos que substitui a planilha GASTOS.xlsx. Vite + React no front (`src/
 
 - `npm run dev` usa o banco do `.env`, que hoje aponta para o **Turso de produção**: o que for gravado no dev aparece no app real.
 - `npm test`, `npm run typecheck`, `npm run build` antes de commitar.
-- Push na `main` publica sozinho na Netlify (projeto **openmoney**).
+- Push na `main` publica sozinho na Netlify (projeto **openmoney**) e roda `npm run db:migrate` no Turso de produção. Deploy Preview de PR migra o banco de preview (`openfinance-preview`). Mudança de schema vai em `server/schema.ts` (`migrar()`), sempre idempotente e por PR.
 
 ## Regras de negócio
 

@@ -77,6 +77,8 @@ Para importar direto da planilha em vez disso, use `npm run db:import` com as me
 
 4. Faça um novo deploy depois de criar as variáveis, porque elas só valem a partir do próximo deploy.
 
+Todo deploy roda `npm run db:migrate` depois do build, no banco das variáveis daquele contexto: produção migra o Turso de produção; Deploy Previews migram o banco de preview (`TURSO_*` com valor próprio para o contexto Deploy Previews, apontando para uma cópia criada com `turso db create openfinance-preview --from-db openfinance`). As variáveis `TURSO_*` precisam valer também no escopo de Builds.
+
 Sem `APP_PASSWORD`/`SESSION_SECRET` a API em produção recusa tudo, ou seja, o app não fica aberto por engano. A sessão dura 90 dias. Para derrubar todas as sessões, troque o `SESSION_SECRET`.
 
 ## Lançar pelos Atalhos do iPhone

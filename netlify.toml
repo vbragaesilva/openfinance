@@ -1,5 +1,7 @@
 [build]
-  command = "npm run build"
+  # Migra o banco do contexto (Turso de produção ou o do preview) depois do build: se o build
+  # falhar, nada é migrado; se a migração falhar, o deploy falha e o site antigo continua no ar.
+  command = "npm run build && npm run db:migrate"
   publish = "dist"
 
 [build.environment]
