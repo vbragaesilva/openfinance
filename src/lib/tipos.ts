@@ -1,7 +1,26 @@
 // Tipos compartilhados entre o front e a API.
 
-export type Modalidade = 'Crédito' | 'Débito'
 export type Tipo = 'Variável' | 'Fixo'
+
+/**
+ * Onde o gasto acontece (um cartão, a conta do débito, o Splitwise…). Todas contam no Gasto do mês;
+ * as flags só decidem o que aparece no Painel e nas Análises.
+ */
+export interface Plataforma {
+  id: number
+  nome: string
+  /** Dia (1–28) em que a fatura fecha: compra antes dele conta no mês anterior. 1 = mês do calendário. */
+  fechamento: number
+  /** Mostra o total da plataforma no Painel, para conferir (ex.: com a fatura ou o Splitwise). */
+  no_painel: boolean
+  /** Entra nas Análises e no "por categoria" do Painel. */
+  nas_analises: boolean
+  /** Inativa some do formulário de lançamento, mas o histórico continua contando. */
+  ativa: boolean
+  ordem: number
+  /** 'splitwise' = recebe os splits criados pelas notificações do Splitwise. */
+  integracao: 'splitwise' | null
+}
 
 export interface Lancamento {
   id: number
@@ -11,17 +30,8 @@ export interface Lancamento {
   local: string
   valor_centavos: number
   categoria: string | null
-  modalidade: Modalidade
+  plataforma_id: number
   tipo: Tipo | null
-}
-
-export interface SplitItem {
-  id: number
-  criado_em: string
-  data: string
-  nome: string
-  valor_centavos: number
-  fixo: Tipo | null
 }
 
 /** Valor com vigência: vale do mês `desde` (AAAA-MM) até a próxima mudança. */
@@ -52,7 +62,7 @@ export interface CaixaMensal {
   valor_centavos: number
 }
 
-/** Notificação do Splitwise que não virou split sozinha (status 'ignorada' ou 'revisar'). */
+/** Notificação do Splitwise que não virou lançamento sozinha (status 'ignorada' ou 'revisar'). */
 export interface NotificacaoPendente {
   id: number
   recebida_em: string
@@ -64,12 +74,10 @@ export interface NotificacaoPendente {
 }
 
 export interface Dados {
+  plataformas: Plataforma[] // ordenado por `ordem`
   lancamentos: Lancamento[]
-  split: SplitItem[]
   fixos: Fixo[]
   salarios: Vigencia[] // ordenado por `desde`
   caixa: CaixaMensal[]
   notificacoes: NotificacaoPendente[]
 }
-
-export type Recurso = 'lancamentos' | 'split'

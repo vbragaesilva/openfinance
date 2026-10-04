@@ -19,7 +19,8 @@ npm run dev            # http://localhost:5173
 
 Sem `.env`, o dev usa `file:local.db` e abre sem senha. Para apontar o dev para o Turso ou testar o login, copie `.env.example` para `.env`.
 
-- `npm test`: testes das fórmulas do painel (`src/lib/painel.test.ts`)
+- `npm test`: testes das fórmulas do painel (`src/lib/painel.test.ts`) e da migração/API (`server/plataformas.test.ts`)
+- `npm run db:migrate`: cria o que falta no banco e converte um banco de antes das plataformas (as tabelas antigas ficam como `lancamentos_antigo` e `split_antigo`, de backup)
 - `npm run typecheck`
 - `npm run db:import -- --substituir`: apaga o banco e reimporta a planilha
 
@@ -28,16 +29,17 @@ Sem `.env`, o dev usa `file:local.db` e abre sem senha. Para apontar o dev para 
 | Planilha | App |
 |---|---|
 | Respostas (Google Form) | tabela `lancamentos`, página Lançamentos |
-| CRÉDITO / DÉBITO | filtros da página Lançamentos (não viram tabelas) |
+| CRÉDITO / DÉBITO | plataformas "Crédito Nubank" e "Débito" (tabela `plataformas`), filtro da página Lançamentos |
 | pizza do PAINEL / CreditoDinamica | página Análises (por categoria, mês a mês, locais, maiores compras) |
-| Split (Google Form) | tabela `split`, página Split |
+| Split (Google Form) | lançamentos na plataforma "Splitwise" |
 | FIXOS | `salarios`, `fixos`, `fixos_valores`, `fixos_pagamentos`; página Fixos |
 | PAINEL | calculado em `src/lib/painel.ts`; o "Caixa Atual" digitado vai para `caixa_mensal` |
 | Consumo moto, Invest, Cashback | ainda não migradas (vão ganhar algo mais estruturado depois) |
 
-O painel segue as fórmulas do bloco de Julho em diante (o comentário de cada campo em `painel.ts` aponta a célula equivalente), com duas regras novas:
+O painel segue as fórmulas do bloco de Julho em diante (o comentário de cada campo em `painel.ts` aponta a célula equivalente), com estas regras novas:
 
-- **Fixo não entra no Gasto.** Lançamento de crédito/débito com tipo "Fixo" e split com "Fixo?" = Fixo já estão descontados em Fixos. Fatura e Split total continuam somando tudo, para conferir com o cartão e com o Splitwise. Sem tipo conta como gasto.
+- **Fixo não entra no Gasto.** Lançamento com tipo "Fixo" já está descontado em Fixos. O total de cada plataforma continua somando tudo, para conferir com a fatura do cartão, com o Splitwise etc. Sem tipo conta como gasto.
+- **Plataformas.** Todo lançamento tem uma plataforma (cartão, débito, Splitwise…), criada e configurada na página Configurações. O Gasto é a soma de todas, sem os fixos. Cada plataforma escolhe se aparece no Painel para conferência e se entra nas Análises, e tem um **dia de fechamento**: compra antes dele conta no mês anterior (1 = mês do calendário). Parcelas seguintes caem no dia do fechamento de cada mês.
 - **Salário e fixos têm vigência.** Mudar um valor vale do mês escolhido em diante; meses anteriores não mudam. A planilha só tinha os valores atuais, então eles foram importados valendo desde o primeiro mês com lançamento (abr/2026).
 
 ## Deploy (Turso + Netlify)
@@ -81,14 +83,14 @@ Sem `APP_PASSWORD`/`SESSION_SECRET` a API em produção recusa tudo, ou seja, o 
 
 Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API_TOKEN>` além do login normal.
 
-- `POST https://openmoney.netlify.app/api/lancamentos` com JSON `{"valor": "R$ 16,50", "produto": "...", "local": "...", "modalidade": "credito", "categoria": "Comida"}`
-- `POST https://openmoney.netlify.app/api/split` com JSON `{"valor": "-68,44", "nome": "..."}`
+- `POST https://openmoney.netlify.app/api/lancamentos` com JSON `{"valor": "R$ 16,50", "produto": "...", "local": "...", "plataforma": "Crédito Nubank", "categoria": "Comida"}`
+- `POST https://openmoney.netlify.app/api/split` com JSON `{"valor": "-68,44", "nome": "..."}` (vira lançamento na plataforma do Splitwise)
 
-`valor` aceita o formato do iPhone ("R$ 16,50", "1.234,56", -5.9). `data` ausente = hoje; `tipo`/`fixo` ausente = Variável; "credito"/"debito"/"fixo"/"variavel" podem vir sem acento. A resposta traz `mensagem` (ex.: "Lançado: R$ 16,50 · iFood (Crédito) · 01/10/2026") para o atalho mostrar.
+`plataforma` é o nome, sem diferenciar maiúsculas/acentos; basta o começo do nome se só uma plataforma ativa começar assim. O campo antigo `modalidade` vale igual: `"credito"` acha "Crédito Nubank" enquanto for o único crédito; depois de criar outro cartão, mande o nome inteiro. `valor` aceita o formato do iPhone ("R$ 16,50", "1.234,56", -5.9). `data` ausente = hoje; `tipo`/`fixo` ausente = Variável; "fixo"/"variavel" podem vir sem acento. A resposta traz `mensagem` (ex.: "Lançado: R$ 16,50 · iFood (Crédito Nubank) · 01/10/2026") para o atalho mostrar.
 
 ### Splitwise por notificação (iOS 27)
 
-Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira split positivo, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado. Toda notificação é salva crua na tabela `notificacoes`, com o status e o split criado.
+Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira lançamento positivo na plataforma do Splitwise, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado e aparece para revisar na página Lançamentos. Toda notificação é salva crua na tabela `notificacoes`, com o status e o lançamento criado.
 
 ### Nubank por notificação (em coleta)
 

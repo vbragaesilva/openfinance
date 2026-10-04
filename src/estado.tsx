@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, NaoAutenticado } from './api.ts'
 import { hojeLocal, type Hoje } from './lib/painel.ts'
-import type { Dados, Recurso } from './lib/tipos.ts'
+import type { Dados } from './lib/tipos.ts'
 
 export interface MesSel {
   ano: number
@@ -15,9 +15,10 @@ interface Estado {
   setMesSel: (m: MesSel) => void
   /** Executa uma escrita na API e recarrega os dados. */
   salvar: (f: () => Promise<unknown>) => Promise<void>
-  criar: (recurso: Recurso, itens: object | object[]) => Promise<void>
-  atualizar: (recurso: Recurso, id: number, campos: object) => Promise<void>
-  apagar: (recurso: Recurso, id: number) => Promise<void>
+  /** Lançamentos. */
+  criar: (itens: object | object[]) => Promise<void>
+  atualizar: (id: number, campos: object) => Promise<void>
+  apagar: (id: number) => Promise<void>
 }
 
 const Ctx = createContext<Estado | null>(null)
@@ -72,9 +73,9 @@ export function ProvedorEstado(props: {
       mesSel,
       setMesSel,
       salvar,
-      criar: (r, itens) => salvar(() => api.criar(r, itens)),
-      atualizar: (r, id, campos) => salvar(() => api.atualizar(r, id, campos)),
-      apagar: (r, id) => salvar(() => api.apagar(r, id)),
+      criar: (itens) => salvar(() => api.criar(itens)),
+      atualizar: (id, campos) => salvar(() => api.atualizar(id, campos)),
+      apagar: (id) => salvar(() => api.apagar(id)),
     }),
     [props.dados, hoje, mesSel, salvar],
   )

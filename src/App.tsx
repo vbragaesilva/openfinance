@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, NaoAutenticado } from './api.ts'
 import { FormLancamento } from './componentes/FormLancamento.tsx'
-import { FormSplit } from './componentes/FormSplit.tsx'
 import { Erro, Folha } from './componentes/ui.tsx'
 import { ProvedorEstado } from './estado.tsx'
 import type { Dados } from './lib/tipos.ts'
 import { Analises } from './paginas/Analises.tsx'
+import { Configuracoes } from './paginas/Configuracoes.tsx'
 import { Fixos } from './paginas/Fixos.tsx'
 import { Lancamentos } from './paginas/Lancamentos.tsx'
 import { Painel } from './paginas/Painel.tsx'
-import { Split } from './paginas/Split.tsx'
 
+// `curto` é o nome na barra de baixo do celular, onde "Configurações" não cabe.
 const ROTAS = [
   { hash: '#/', nome: 'Painel', icone: '◔', Pagina: Painel },
   { hash: '#/lancamentos', nome: 'Lançamentos', icone: '≡', Pagina: Lancamentos },
-  { hash: '#/split', nome: 'Split', icone: '⇄', Pagina: Split },
   { hash: '#/fixos', nome: 'Fixos', icone: '▤', Pagina: Fixos },
   { hash: '#/analises', nome: 'Análises', icone: '▦', Pagina: Analises },
+  { hash: '#/config', nome: 'Configurações', curto: 'Ajustes', icone: '⚙\uFE0E', Pagina: Configuracoes },
 ]
 
 function useHash() {
@@ -64,7 +64,7 @@ type Fase = { tipo: 'carregando' } | { tipo: 'login' } | { tipo: 'erro'; msg: st
 
 export function App() {
   const [fase, setFase] = useState<Fase>({ tipo: 'carregando' })
-  const [novo, setNovo] = useState<'lancamento' | 'split' | null>(null)
+  const [novo, setNovo] = useState(false)
   const hash = useHash()
 
   const carregar = useCallback(async () => {
@@ -118,7 +118,7 @@ export function App() {
           ))}
         </nav>
         <div className="topo-acoes">
-          <button type="button" className="btn primario so-desktop" onClick={() => setNovo('lancamento')}>
+          <button type="button" className="btn primario so-desktop" onClick={() => setNovo(true)}>
             + Lançamento
           </button>
           {!fase.aberto && (
@@ -134,28 +134,20 @@ export function App() {
         <Pagina />
       </main>
 
-      <button
-        type="button"
-        className="fab so-celular"
-        onClick={() => setNovo(rota.hash === '#/split' ? 'split' : 'lancamento')}
-        aria-label={rota.hash === '#/split' ? 'Novo split' : 'Novo lançamento'}
-      >
+      <button type="button" className="fab so-celular" onClick={() => setNovo(true)} aria-label="Novo lançamento">
         +
       </button>
       <nav className="nav-baixo" aria-label="Seções">
         {ROTAS.map((r) => (
           <a key={r.hash} href={r.hash} aria-current={r === rota ? 'page' : undefined}>
             <span aria-hidden className="nav-icone">{r.icone}</span>
-            {r.nome}
+            {r.curto ?? r.nome}
           </a>
         ))}
       </nav>
 
-      <Folha titulo="Novo lançamento" aberta={novo === 'lancamento'} onFechar={() => setNovo(null)}>
-        {novo === 'lancamento' && <FormLancamento onPronto={() => setNovo(null)} />}
-      </Folha>
-      <Folha titulo="Novo split" aberta={novo === 'split'} onFechar={() => setNovo(null)}>
-        {novo === 'split' && <FormSplit onPronto={() => setNovo(null)} />}
+      <Folha titulo="Novo lançamento" aberta={novo} onFechar={() => setNovo(false)}>
+        {novo && <FormLancamento onPronto={() => setNovo(false)} />}
       </Folha>
     </ProvedorEstado>
   )

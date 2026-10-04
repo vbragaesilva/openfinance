@@ -1,4 +1,4 @@
-import type { Dados, Recurso } from './lib/tipos.ts'
+import type { Dados } from './lib/tipos.ts'
 
 export class NaoAutenticado extends Error {}
 
@@ -20,9 +20,17 @@ export const api = {
   login: (senha: string) => req<{ ok: true }>('POST', 'login', { senha }),
   logout: () => req<{ ok: true }>('POST', 'logout'),
   dados: () => req<Dados>('GET', 'dados'),
-  criar: (recurso: Recurso, itens: object | object[]) => req<{ ids: number[] }>('POST', recurso, itens),
-  atualizar: (recurso: Recurso, id: number, campos: object) => req<{ ok: true }>('PUT', `${recurso}/${id}`, campos),
-  apagar: (recurso: Recurso, id: number) => req<{ ok: true }>('DELETE', `${recurso}/${id}`),
+  criar: (itens: object | object[]) => req<{ ids: number[] }>('POST', 'lancamentos', itens),
+  atualizar: (id: number, campos: object) => req<{ ok: true }>('PUT', `lancamentos/${id}`, campos),
+  apagar: (id: number) => req<{ ok: true }>('DELETE', `lancamentos/${id}`),
+  criarPlataforma: (p: { nome: string; fechamento: number; no_painel: boolean; nas_analises: boolean }) =>
+    req<{ ok: true }>('POST', 'plataformas', p),
+  atualizarPlataforma: (
+    id: number,
+    campos: { nome?: string; fechamento?: number; no_painel?: boolean; nas_analises?: boolean; ativa?: boolean },
+  ) => req<{ ok: true }>('PUT', `plataformas/${id}`, campos),
+  ordenarPlataformas: (ids: number[]) => req<{ ok: true }>('PUT', 'plataformas/ordem', ids),
+  apagarPlataforma: (id: number) => req<{ ok: true }>('DELETE', `plataformas/${id}`),
   salario: (desde: string, valor_centavos: number) => req<{ ok: true }>('PUT', `salarios/${desde}`, { valor_centavos }),
   apagarSalario: (desde: string) => req<{ ok: true }>('DELETE', `salarios/${desde}`),
   criarFixo: (f: { nome: string; valor_centavos: number; investimento: boolean; inicio: string }) =>

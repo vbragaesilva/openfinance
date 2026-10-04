@@ -1,28 +1,40 @@
-// Análises do crédito (o que a pizza do PAINEL e a CreditoDinamica mostravam), por mês, ano ou tudo.
-import { chaveMes, ehFixo } from './painel.ts'
+// Análises (o que a pizza do PAINEL e a CreditoDinamica mostravam para o crédito), por mês, ano ou
+// tudo. Entram as plataformas marcadas "nas análises" em Configurações.
+import { chaveMes, ehFixo, mesDoLancamento } from './painel.ts'
 import type { Dados, Lancamento } from './tipos.ts'
 
 export type Periodo = { tipo: 'mes'; ano: number; mes: number } | { tipo: 'ano'; ano: number } | { tipo: 'tudo' }
 
 export const SEM_CATEGORIA = 'Sem categoria'
 
-/** Lançamentos de crédito do período. `semFixos` tira o que já está nos fixos. */
-export function creditoDoPeriodo(dados: Dados, periodo: Periodo, semFixos: boolean): Lancamento[] {
+const idsNasAnalises = (dados: Dados) => new Set(dados.plataformas.filter((p) => p.nas_analises).map((p) => p.id))
+
+/** Nome do conjunto analisado, para títulos: "Crédito Nubank", "Crédito Nubank + Débito", "3 plataformas". */
+export function rotuloAnalises(dados: Dados): string {
+  const nomes = dados.plataformas.filter((p) => p.nas_analises).map((p) => p.nome)
+  return nomes.length <= 2 ? nomes.join(' + ') : `${nomes.length} plataformas`
+}
+
+/** Lançamentos analisados do período. `semFixos` tira o que já está nos fixos. */
+export function lancamentosDoPeriodo(dados: Dados, periodo: Periodo, semFixos: boolean): Lancamento[] {
   const prefixo =
     periodo.tipo === 'mes' ? chaveMes(periodo.ano, periodo.mes) : periodo.tipo === 'ano' ? `${periodo.ano}-` : ''
+  const ids = idsNasAnalises(dados)
+  const mesDe = mesDoLancamento(dados)
   return dados.lancamentos.filter(
-    (l) => l.modalidade === 'Crédito' && l.data.startsWith(prefixo) && !(semFixos && ehFixo(l)),
+    (l) => ids.has(l.plataforma_id) && mesDe(l).startsWith(prefixo) && !(semFixos && ehFixo(l)),
   )
 }
 
 /**
- * Ordem fixa das categorias (maior total de crédito de todos os tempos primeiro). Define as cores,
+ * Ordem fixa das categorias (maior total analisado de todos os tempos primeiro). Define as cores,
  * então a cor de uma categoria não muda quando o filtro muda.
  */
 export function ordemCategorias(dados: Dados): string[] {
   const total = new Map<string, number>()
+  const ids = idsNasAnalises(dados)
   for (const l of dados.lancamentos) {
-    if (l.modalidade !== 'Crédito' || l.categoria == null) continue
+    if (!ids.has(l.plataforma_id) || l.categoria == null) continue
     total.set(l.categoria, (total.get(l.categoria) ?? 0) + l.valor_centavos)
   }
   return [...total.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c)
@@ -59,10 +71,13 @@ export interface MesCategorias {
   total: number // só categorias com soma positiva
 }
 
-/** Total por categoria em cada mês, do primeiro ao último mês com lançamento (sem buracos). */
-export function evolucaoMensal(lancs: Lancamento[]): MesCategorias[] {
+/**
+ * Total por categoria em cada mês, do primeiro ao último mês com lançamento (sem buracos).
+ * `mesDe` diz o mês de cada lançamento (ver mesDoLancamento).
+ */
+export function evolucaoMensal(lancs: Lancamento[], mesDe: (l: Lancamento) => string): MesCategorias[] {
   if (lancs.length === 0) return []
-  const chaves = lancs.map((l) => l.data.slice(0, 7)).sort()
+  const chaves = lancs.map(mesDe).sort()
   const [a0, m0] = chaves[0].split('-').map(Number)
   const [a1, m1] = chaves[chaves.length - 1].split('-').map(Number)
   const meses: MesCategorias[] = []
@@ -74,7 +89,7 @@ export function evolucaoMensal(lancs: Lancamento[]): MesCategorias[] {
   const porChave = new Map(meses.map((m) => [m.chave, m]))
   for (const l of lancs) {
     if (l.categoria == null) continue
-    const m = porChave.get(l.data.slice(0, 7))!
+    const m = porChave.get(mesDe(l))!
     m.porCategoria.set(l.categoria, (m.porCategoria.get(l.categoria) ?? 0) + l.valor_centavos)
   }
   for (const m of meses) m.total = [...m.porCategoria.values()].filter((v) => v > 0).reduce((s, v) => s + v, 0)

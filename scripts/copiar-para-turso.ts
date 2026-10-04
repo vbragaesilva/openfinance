@@ -6,7 +6,9 @@
 import { createClient, type InStatement } from '@libsql/client'
 import { cliente, migrar } from './cliente.ts'
 
-const TABELAS = ['lancamentos', 'split', 'salarios', 'fixos', 'fixos_valores', 'fixos_pagamentos', 'caixa_mensal']
+// `plataformas` vem junto, mas não conta como "destino já tem dados": todo banco novo já nasce com as
+// plataformas iniciais, que são trocadas pelas da origem.
+const TABELAS = ['lancamentos', 'salarios', 'fixos', 'fixos_valores', 'fixos_pagamentos', 'caixa_mensal']
 
 const args = process.argv.slice(2)
 const substituir = args.includes('--substituir')
@@ -18,6 +20,7 @@ if (!process.env.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL === `file:
 }
 
 const origem = createClient({ url: `file:${arquivo}` })
+await migrar(origem) // um local.db de antes das plataformas é convertido primeiro
 const destino = cliente()
 await migrar(destino)
 
@@ -31,9 +34,9 @@ if (!substituir) {
   }
 }
 
-const stmts: InStatement[] = substituir ? TABELAS.map((t) => `DELETE FROM ${t}`) : []
+const stmts: InStatement[] = [...(substituir ? TABELAS.map((t) => `DELETE FROM ${t}`) : []), 'DELETE FROM plataformas']
 const contagem: Record<string, number> = {}
-for (const tabela of TABELAS) {
+for (const tabela of ['plataformas', ...TABELAS]) {
   const rs = await origem.execute(`SELECT * FROM ${tabela}`)
   const cols = rs.columns
   for (const row of rs.rows) {

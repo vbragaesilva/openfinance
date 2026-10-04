@@ -1,12 +1,15 @@
 // Cálculos do antigo PAINEL. Segue o bloco mais recente da planilha (Julho em diante) — os
-// comentários apontam a célula equivalente do bloco de Julho (colunas P–S) — com dois ajustes
+// comentários apontam a célula equivalente do bloco de Julho (colunas P–S) — com os ajustes
 // pedidos depois da migração:
-//  - o que é Fixo (tipo do lançamento / "Fixo?" do split) não entra no Gasto, porque já está
-//    descontado em Fixos. Fatura e Split total continuam mostrando tudo, para conferir com o
-//    cartão e com o Splitwise;
-//  - salário e fixos têm vigência por mês, então mudar um valor não altera meses anteriores.
+//  - o que é Fixo (tipo do lançamento) não entra no Gasto, porque já está descontado em Fixos.
+//    O total de cada plataforma continua mostrando tudo, para conferir com a fatura do cartão,
+//    com o Splitwise etc.;
+//  - salário e fixos têm vigência por mês, então mudar um valor não altera meses anteriores;
+//  - crédito, débito e split viraram plataformas configuráveis: o Gasto é a soma de todas, sem
+//    os fixos (o antigo Q11 = crédito sem fixos + débito + split sem fixos), e cada uma tem um dia
+//    de fechamento: compra antes dele conta no mês anterior.
 // Todos os valores em centavos.
-import type { Dados, Fixo, Lancamento, Pagamento, SplitItem, Vigencia } from './tipos.ts'
+import type { Dados, Fixo, Lancamento, Pagamento, Plataforma, Vigencia } from './tipos.ts'
 
 export interface Hoje {
   ano: number
@@ -22,16 +25,43 @@ export const diasNoMes = (ano: number, mes: number) => new Date(ano, mes, 0).get
 
 export const chaveMes = (ano: number, mes: number) => `${ano}-${String(mes).padStart(2, '0')}`
 
-export const doMes = <T extends { data: string }>(itens: T[], ano: number, mes: number) => {
-  const prefixo = chaveMes(ano, mes)
-  return itens.filter((i) => i.data.startsWith(prefixo))
+/** Mês (AAAA-MM) em que uma compra conta: antes do dia de fechamento, conta no mês anterior. */
+export function mesDaCompra(data: string, fechamento: number): string {
+  if (Number(data.slice(8, 10)) >= fechamento) return data.slice(0, 7)
+  const ano = Number(data.slice(0, 4))
+  const mes = Number(data.slice(5, 7))
+  return mes === 1 ? chaveMes(ano - 1, 12) : chaveMes(ano, mes - 1)
+}
+
+/** Função que diz o mês (AAAA-MM) de cada lançamento, pelo fechamento da plataforma dele. */
+export function mesDoLancamento(dados: Pick<Dados, 'plataformas'>): (l: Lancamento) => string {
+  const fechamento = new Map(dados.plataformas.map((p) => [p.id, p.fechamento]))
+  return (l) => mesDaCompra(l.data, fechamento.get(l.plataforma_id) ?? 1)
+}
+
+/** Lançamentos que contam no mês (pelo fechamento de cada plataforma). */
+export function lancamentosDoMes(dados: Pick<Dados, 'plataformas' | 'lancamentos'>, ano: number, mes: number) {
+  const chave = chaveMes(ano, mes)
+  const mesDe = mesDoLancamento(dados)
+  return dados.lancamentos.filter((l) => mesDe(l) === chave)
+}
+
+/**
+ * Primeiro e último dia de compra que contam no mês para uma plataforma (AAAA-MM-DD).
+ * Com fechamento 5, outubro vai de 05/10 a 04/11.
+ */
+export function periodoDaPlataforma(p: Plataforma, ano: number, mes: number): { de: string; ate: string } {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (p.fechamento <= 1) return { de: `${chaveMes(ano, mes)}-01`, ate: `${chaveMes(ano, mes)}-${pad(diasNoMes(ano, mes))}` }
+  const [aSeg, mSeg] = mes === 12 ? [ano + 1, 1] : [ano, mes + 1]
+  return { de: `${chaveMes(ano, mes)}-${pad(p.fechamento)}`, ate: `${chaveMes(aSeg, mSeg)}-${pad(p.fechamento - 1)}` }
 }
 
 const soma = <T>(itens: T[], f: (i: T) => number) => itens.reduce((s, i) => s + f(i), 0)
 
 /** Fixo = já previsto nos fixos. Sem tipo conta como gasto, igual a Variável. */
-export function ehFixo(item: Lancamento | SplitItem) {
-  return ('modalidade' in item ? item.tipo : item.fixo) === 'Fixo'
+export function ehFixo(item: Lancamento) {
+  return item.tipo === 'Fixo'
 }
 
 /** Valor que vale no mês `chave` (AAAA-MM): a última vigência que começou até ele. */
@@ -64,6 +94,12 @@ export const salarioDoMes = (dados: Dados, ano: number, mes: number) => vigente(
 
 export type DiasParaLiberar = number | 'PARE!' | null
 
+export interface TotalPlataforma {
+  plataforma: Plataforma
+  total: number // tudo, para conferir (antigos Q9 Fatura e Q7 Split total)
+  semFixos: number // o que entra no Gasto (antigos Q10, Q8 e Q6)
+}
+
 export interface ResumoMes {
   ano: number
   mes: number
@@ -74,12 +110,9 @@ export interface ResumoMes {
   restante: number // Q5
   idealDiario: number // S5
   caixaAtual: number | null // R5
-  splitTotal: number // Q7 — confere com o Splitwise
-  splitSemFixos: number // Q8 (antes: só "Variável")
-  fatura: number // Q9 — confere com a fatura do cartão
-  creditoSemFixos: number // Q10 (antes calculado mas fora do Gasto)
-  debito: number // Q6 (sem os marcados como Fixo)
-  gasto: number // Q11 = split sem fixos + crédito sem fixos + débito
+  /** Todas as plataformas, na ordem configurada. */
+  plataformas: TotalPlataforma[]
+  gasto: number // Q11 = soma das plataformas sem fixos
   excedenteMes: number // Q12
   atualIdeal: number // R9
   excedenteHoje: number // S9
@@ -103,18 +136,17 @@ export function resumoMes(dados: Dados, ano: number, mes: number, hoje: Hoje): R
   const restante = salario - fixos // =Q3-Q4
   const idealDiario = restante / dias // =Q5/R2
 
-  const lancs = doMes(dados.lancamentos, ano, mes)
-  const splits = doMes(dados.split, ano, mes)
-  const credito = lancs.filter((l) => l.modalidade === 'Crédito')
+  const lancs = lancamentosDoMes(dados, ano, mes)
+  const plataformas = dados.plataformas.map((plataforma) => {
+    const daPlataforma = lancs.filter((l) => l.plataforma_id === plataforma.id)
+    return {
+      plataforma,
+      total: soma(daPlataforma, (l) => l.valor_centavos),
+      semFixos: soma(daPlataforma.filter((l) => !ehFixo(l)), (l) => l.valor_centavos),
+    }
+  })
 
-  const semFixos = <T extends Lancamento | SplitItem>(itens: T[]) => itens.filter((i) => !ehFixo(i))
-  const debito = soma(semFixos(lancs.filter((l) => l.modalidade === 'Débito')), (l) => l.valor_centavos)
-  const splitTotal = soma(splits, (s) => s.valor_centavos)
-  const splitSemFixos = soma(semFixos(splits), (s) => s.valor_centavos)
-  const fatura = soma(credito, (l) => l.valor_centavos)
-  const creditoSemFixos = soma(semFixos(credito), (l) => l.valor_centavos)
-
-  const gasto = splitSemFixos + creditoSemFixos + debito
+  const gasto = soma(lancs.filter((l) => !ehFixo(l)), (l) => l.valor_centavos)
   const excedenteMes = restante - gasto // =Q5-Q11
 
   const atualIdeal = (Math.max(diaAtual - 1, 0) / dias) * restante // =(MAX(R3-1,0)/R2)*Q5
@@ -143,7 +175,7 @@ export function resumoMes(dados: Dados, ano: number, mes: number, hoje: Hoje): R
 
   return {
     ano, mes, dias, diaAtual, salario, fixos, restante, idealDiario, caixaAtual,
-    splitTotal, splitSemFixos, fatura, creditoSemFixos, debito, gasto, excedenteMes,
+    plataformas, gasto, excedenteMes,
     atualIdeal, excedenteHoje, diasParaLiberar, diaLiberado, taDeBoa, caixaProj, investProj,
   }
 }
@@ -157,8 +189,10 @@ export interface PontoRitmo {
 /** Gasto acumulado dia a dia contra a linha ideal (Restante / dias por dia). */
 export function ritmoDoMes(dados: Dados, r: ResumoMes): PontoRitmo[] {
   const porDia = new Array<number>(r.dias + 1).fill(0)
-  for (const item of [...doMes(dados.lancamentos, r.ano, r.mes), ...doMes(dados.split, r.ano, r.mes)]) {
-    if (!ehFixo(item)) porDia[Number(item.data.slice(8, 10))] += item.valor_centavos
+  const chave = chaveMes(r.ano, r.mes)
+  for (const l of lancamentosDoMes(dados, r.ano, r.mes)) {
+    // Compra do mês seguinte que ainda conta neste (antes do fechamento) entra no último dia.
+    if (!ehFixo(l)) porDia[l.data.startsWith(chave) ? Number(l.data.slice(8, 10)) : r.dias] += l.valor_centavos
   }
   // Mês corrente: a linha de gasto vai até hoje. Passado e futuro: mês inteiro.
   const ultimoDia = r.diaAtual > 0 && r.diaAtual < r.dias ? r.diaAtual : r.dias
@@ -173,9 +207,11 @@ export function ritmoDoMes(dados: Dados, r: ResumoMes): PontoRitmo[] {
 
 /** Meses a mostrar na visão do ano: do primeiro mês com lançamento até dezembro. */
 export function mesesDoAno(dados: Dados, ano: number, hoje: Hoje): number[] {
-  const meses = [...dados.lancamentos, ...dados.split]
-    .filter((i) => i.data.startsWith(`${ano}-`))
-    .map((i) => Number(i.data.slice(5, 7)))
+  const mesDe = mesDoLancamento(dados)
+  const meses = dados.lancamentos
+    .map(mesDe)
+    .filter((m) => m.startsWith(`${ano}-`))
+    .map((m) => Number(m.slice(5, 7)))
   if (ano === hoje.ano) meses.push(hoje.mes)
   const primeiro = meses.length ? Math.min(...meses) : 1
   return Array.from({ length: 13 - primeiro }, (_, i) => primeiro + i)

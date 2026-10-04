@@ -70,6 +70,10 @@ function inserir(tabela: string, linha: Record<string, unknown>) {
   contagem[tabela] = (contagem[tabela] ?? 0) + 1
 }
 
+// Plataformas iniciais criadas por migrar(): 1 = Crédito Nubank, 2 = Débito, 3 = Splitwise.
+const PLATAFORMA_DA_MODALIDADE: Record<string, number> = { 'Crédito': 1, 'Débito': 2 }
+const SPLITWISE = 3
+
 // --- Respostas -> lancamentos
 {
   const ws = aba('Respostas')
@@ -78,6 +82,9 @@ function inserir(tabela: string, linha: Record<string, unknown>) {
     if (!carimbo) continue // linha vazia
     const d = data(val(ws, `B${r}`))
     if (!d) throw new Error(`Respostas!B${r} sem data`)
+    const modalidade = texto(val(ws, `G${r}`))
+    const plataforma_id = PLATAFORMA_DA_MODALIDADE[modalidade]
+    if (!plataforma_id) throw new Error(`Respostas!G${r}: modalidade desconhecida "${modalidade}"`)
     inserir('lancamentos', {
       criado_em: dataHora(carimbo),
       data: dataISO(d),
@@ -85,13 +92,13 @@ function inserir(tabela: string, linha: Record<string, unknown>) {
       local: texto(val(ws, `D${r}`)),
       valor_centavos: centavos(val(ws, `E${r}`), `Respostas!E${r}`),
       categoria: textoOuNull(val(ws, `F${r}`)),
-      modalidade: texto(val(ws, `G${r}`)),
+      plataforma_id,
       tipo: textoOuNull(val(ws, `H${r}`)),
     })
   }
 }
 
-// --- Split
+// --- Split -> lancamentos na plataforma Splitwise
 {
   const ws = aba('Split')
   for (let r = 2; r <= ws.rowCount; r++) {
@@ -99,12 +106,13 @@ function inserir(tabela: string, linha: Record<string, unknown>) {
     if (!carimbo) continue
     const d = data(val(ws, `B${r}`))
     if (!d) throw new Error(`Split!B${r} sem data`)
-    inserir('split', {
+    inserir('lancamentos', {
       criado_em: dataHora(carimbo),
       data: dataISO(d),
-      nome: texto(val(ws, `C${r}`)),
+      produto: texto(val(ws, `C${r}`)),
       valor_centavos: centavos(val(ws, `D${r}`), `Split!D${r}`),
-      fixo: textoOuNull(val(ws, `E${r}`)),
+      plataforma_id: SPLITWISE,
+      tipo: textoOuNull(val(ws, `E${r}`)),
     })
   }
 }
@@ -178,7 +186,7 @@ const caixas: { ano: number; mes: number; valor_centavos: number }[] = []
 const db = cliente()
 await migrar(db)
 
-const tabelas = ['lancamentos', 'split', 'salarios', 'fixos', 'fixos_valores', 'fixos_pagamentos', 'caixa_mensal']
+const tabelas = ['lancamentos', 'salarios', 'fixos', 'fixos_valores', 'fixos_pagamentos', 'caixa_mensal']
 if (!substituir) {
   const rs = await db.batch(tabelas.map((t) => `SELECT COUNT(*) AS n FROM ${t}`), 'read')
   const ocupadas = tabelas.filter((_, i) => Number(rs[i].rows[0].n) > 0)

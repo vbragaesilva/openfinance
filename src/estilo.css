@@ -1405,3 +1405,52 @@ details.cartao:not([open]) > summary::after {
 .valor-pos {
   color: var(--bom-texto);
 }
+
+/* ---------- Configurações ---------- */
+
+.cartao-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.cartao-topo h3 {
+  margin: 0;
+}
+
+.nota.sem-margem {
+  margin: 0;
+}
+
+.btn-icone:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+}
+
+.lista > li.plataforma-linha {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.plataforma-linha .item-principal {
+  flex: 1;
+}
+
+.plataforma-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+}
+
+.plataforma-acoes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}

@@ -1,11 +1,11 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { api } from '../api.ts'
 import { BarrasCategoria } from '../componentes/Categorias.tsx'
 import { GraficoRitmo } from '../componentes/GraficoRitmo.tsx'
 import { Dinheiro, SeletorMes } from '../componentes/ui.tsx'
 import { useEstado } from '../estado.tsx'
 import { brl, lerValor, mesCurto, nomeMes, valorParaCampo } from '../lib/formato.ts'
-import { creditoDoPeriodo, ordemCategorias, porCategoria } from '../lib/analises.ts'
+import { lancamentosDoPeriodo, ordemCategorias, porCategoria, rotuloAnalises } from '../lib/analises.ts'
 import { mesesDoAno, resumoMes, ritmoDoMes, type ResumoMes } from '../lib/painel.ts'
 
 function Status({ r }: { r: ResumoMes }) {
@@ -106,7 +106,7 @@ export function Painel() {
   const ritmo = useMemo(() => ritmoDoMes(dados, r), [dados, r])
   const ordem = useMemo(() => ordemCategorias(dados), [dados])
   const categorias = useMemo(
-    () => porCategoria(creditoDoPeriodo(dados, { tipo: 'mes', ano: mesSel.ano, mes: mesSel.mes }, false)),
+    () => porCategoria(lancamentosDoPeriodo(dados, { tipo: 'mes', ano: mesSel.ano, mes: mesSel.mes }, false)),
     [dados, mesSel],
   )
   const ano = useMemo(
@@ -114,6 +114,10 @@ export function Painel() {
     [dados, mesSel.ano, hoje],
   )
   const [abrirNumeros] = useState(() => matchMedia('(min-width: 760px)').matches)
+  // As marcadas "no painel" aparecem uma a uma; as outras contam no Gasto numa linha só.
+  const conferidas = r.plataformas.filter((p) => p.plataforma.no_painel)
+  const outras = r.plataformas.filter((p) => !p.plataforma.no_painel).reduce((s, p) => s + p.semFixos, 0)
+  const analisadas = rotuloAnalises(dados)
 
   const mesPassado = hoje.ano * 12 + hoje.mes > r.ano * 12 + r.mes
   // Mês passado aparece como "dia 31 de 31" riscado.
@@ -147,15 +151,16 @@ export function Painel() {
           <span className="rotulo">Gasto do mês</span>
           <Dinheiro centavos={r.gasto} className="numero-tile" />
           <ul className="composicao">
-            <li>
-              <span>Crédito sem fixos <small>fatura {brl(r.fatura)}</small></span>
-              <Dinheiro centavos={r.creditoSemFixos} />
-            </li>
-            <li><span>Débito</span><Dinheiro centavos={r.debito} /></li>
-            <li>
-              <span>Split sem fixos <small>Splitwise {brl(r.splitTotal)}</small></span>
-              <Dinheiro centavos={r.splitSemFixos} />
-            </li>
+            {conferidas.map((p) => (
+              <li key={p.plataforma.id}>
+                <span>
+                  {p.plataforma.nome}
+                  {p.total !== p.semFixos && <small>sem fixos; total {brl(p.total)}</small>}
+                </span>
+                <Dinheiro centavos={p.semFixos} />
+              </li>
+            ))}
+            {outras !== 0 && <li><span>Outras plataformas</span><Dinheiro centavos={outras} /></li>}
           </ul>
         </section>
         <section className="cartao tile">
@@ -183,14 +188,16 @@ export function Painel() {
 
       <div className="grade-2">
         <section className="cartao">
-          <h3>Crédito por categoria</h3>
-          {categorias.fatias.length === 0 ? (
-            <p className="mudo">Nenhuma compra no crédito neste mês.</p>
+          <h3>{analisadas ? `${analisadas} por categoria` : 'Por categoria'}</h3>
+          {!analisadas ? (
+            <p className="mudo">Nenhuma plataforma nas análises. <a href="#/config">Escolher em Configurações</a></p>
+          ) : categorias.fatias.length === 0 ? (
+            <p className="mudo">Nenhuma compra neste mês.</p>
           ) : (
             <BarrasCategoria fatias={categorias.fatias} ordem={ordem} total={categorias.total} />
           )}
           <p className="nota">
-            Fatura inteira do mês{categorias.semCategoria !== 0 && `; ${brl(categorias.semCategoria)} sem categoria ficam fora`}.{' '}
+            Total do mês, com fixos{categorias.semCategoria !== 0 && `; ${brl(categorias.semCategoria)} sem categoria ficam fora`}.{' '}
             <a href="#/analises">Mais análises →</a>
           </p>
         </section>
@@ -202,12 +209,16 @@ export function Painel() {
             <Linha rotulo="Fixos" valor={<Dinheiro centavos={r.fixos} />} />
             <Linha rotulo="Restante" dica="Salário − Fixos" valor={<Dinheiro centavos={r.restante} />} forte />
             <Linha rotulo="Ideal diário" dica={`Restante ÷ ${r.dias} dias`} valor={<Dinheiro centavos={r.idealDiario} />} />
-            <Linha rotulo="Fatura" dica="todo o crédito do mês; confere com o cartão" valor={<Dinheiro centavos={r.fatura} />} />
-            <Linha rotulo="Crédito sem fixos" dica="o que entra no Gasto" valor={<Dinheiro centavos={r.creditoSemFixos} />} />
-            <Linha rotulo="Split total" dica="confere com o Splitwise" valor={<Dinheiro centavos={r.splitTotal} />} />
-            <Linha rotulo="Split sem fixos" dica="o que entra no Gasto" valor={<Dinheiro centavos={r.splitSemFixos} />} />
-            <Linha rotulo="Débito" dica="negativo = recebimento" valor={<Dinheiro centavos={r.debito} />} />
-            <Linha rotulo="Gasto" dica="Crédito + Split sem fixos + Débito" valor={<Dinheiro centavos={r.gasto} />} forte />
+            {conferidas.map((p) => (
+              <Fragment key={p.plataforma.id}>
+                <Linha rotulo={`${p.plataforma.nome} total`} dica="tudo; confere com a plataforma" valor={<Dinheiro centavos={p.total} />} />
+                <Linha rotulo={`${p.plataforma.nome} sem fixos`} dica="o que entra no Gasto" valor={<Dinheiro centavos={p.semFixos} />} />
+              </Fragment>
+            ))}
+            {outras !== 0 && (
+              <Linha rotulo="Outras plataformas" dica="sem fixos; fora da conferência" valor={<Dinheiro centavos={outras} />} />
+            )}
+            <Linha rotulo="Gasto" dica="todas as plataformas, sem fixos" valor={<Dinheiro centavos={r.gasto} />} forte />
             <Linha rotulo="Excedente do mês" dica="Restante − Gasto" valor={<Dinheiro centavos={r.excedenteMes} />} />
             <Linha rotulo="Atual ideal" dica="(dia − 1) ÷ dias × Restante" valor={<Dinheiro centavos={r.atualIdeal} />} />
             <Linha rotulo="Excedente até hoje" dica="Atual ideal − Gasto" valor={<Dinheiro centavos={r.excedenteHoje} />} forte />

@@ -3,9 +3,10 @@ import { BarrasCategoria, ColunasMensais, corCategoria } from '../componentes/Ca
 import { Dinheiro, Segmentado, SeletorMes } from '../componentes/ui.tsx'
 import { useEstado } from '../estado.tsx'
 import {
-  creditoDoPeriodo, evolucaoMensal, maioresCompras, ordemCategorias, porCategoria, topLocais, type Periodo,
+  evolucaoMensal, lancamentosDoPeriodo, maioresCompras, ordemCategorias, porCategoria, rotuloAnalises, topLocais, type Periodo,
 } from '../lib/analises.ts'
 import { brl, dataCurta, mesCurto, nomeMes } from '../lib/formato.ts'
+import { mesDoLancamento } from '../lib/painel.ts'
 
 type TipoPeriodo = Periodo['tipo']
 
@@ -20,11 +21,15 @@ export function Analises() {
   )
 
   const ordem = useMemo(() => ordemCategorias(dados), [dados])
-  const lancs = useMemo(() => creditoDoPeriodo(dados, periodo, semFixos), [dados, periodo, semFixos])
+  const lancs = useMemo(() => lancamentosDoPeriodo(dados, periodo, semFixos), [dados, periodo, semFixos])
   const cats = useMemo(() => porCategoria(lancs), [lancs])
   // No filtro "Mês", o gráfico mostra o ano inteiro com o mês escolhido em destaque.
   const meses = useMemo(
-    () => evolucaoMensal(creditoDoPeriodo(dados, tipo === 'tudo' ? { tipo: 'tudo' } : { tipo: 'ano', ano: mesSel.ano }, semFixos)),
+    () =>
+      evolucaoMensal(
+        lancamentosDoPeriodo(dados, tipo === 'tudo' ? { tipo: 'tudo' } : { tipo: 'ano', ano: mesSel.ano }, semFixos),
+        mesDoLancamento(dados),
+      ),
     [dados, tipo, mesSel.ano, semFixos],
   )
   const locais = useMemo(() => topLocais(lancs), [lancs])
@@ -36,6 +41,17 @@ export function Analises() {
   const maxCelula = Math.max(1, ...meses.flatMap((m) => [...m.porCategoria.values()]))
   const destaque = tipo === 'mes' ? `${mesSel.ano}-${String(mesSel.mes).padStart(2, '0')}` : undefined
   const titulo = tipo === 'mes' ? `${nomeMes(mesSel.mes)} ${mesSel.ano}` : tipo === 'ano' ? String(mesSel.ano) : 'Tudo'
+  const analisadas = rotuloAnalises(dados)
+
+  if (!analisadas) {
+    return (
+      <section className="cartao">
+        <p className="mudo">
+          Nenhuma plataforma está nas análises. <a href="#/config">Escolher em Configurações</a>
+        </p>
+      </section>
+    )
+  }
 
   return (
     <div className="pagina">
@@ -59,11 +75,11 @@ export function Analises() {
           </div>
         )}
         <Segmentado
-          rotulo="Crédito"
+          rotulo="Fixos"
           valor={semFixos ? 'sem' : 'tudo'}
           onChange={(v) => setSemFixos(v === 'sem')}
           opcoes={[
-            { valor: 'tudo', texto: 'Fatura inteira' },
+            { valor: 'tudo', texto: 'Com fixos' },
             { valor: 'sem', texto: 'Sem fixos' },
           ]}
         />
@@ -71,7 +87,7 @@ export function Analises() {
 
       <div className="grade-tiles">
         <section className="cartao tile">
-          <span className="rotulo">Crédito · {titulo}</span>
+          <span className="rotulo">{analisadas} · {titulo}</span>
           <Dinheiro centavos={total} className="numero-tile" />
           <span className="mudo">{lancs.length} {lancs.length === 1 ? 'compra' : 'compras'}</span>
         </section>
@@ -91,7 +107,7 @@ export function Analises() {
       <section className="cartao">
         <h3>Por categoria</h3>
         {cats.fatias.length === 0 ? (
-          <p className="mudo">Nenhuma compra no crédito neste período.</p>
+          <p className="mudo">Nenhuma compra neste período.</p>
         ) : (
           <BarrasCategoria fatias={cats.fatias} ordem={ordem} total={cats.total} />
         )}
