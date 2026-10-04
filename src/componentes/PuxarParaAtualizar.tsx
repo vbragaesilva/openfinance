@@ -6,30 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 const LIMITE = 90 // px de arrasto para completar o círculo
 const TRACOS = 12
 
-// Vibração. Android: navigator.vibrate, com um tique a cada traço e um estalo ao completar.
-// iPhone: não há navigator.vibrate; o único toque disponível é o do <input type="checkbox" switch>
-// clicado por código, e o iOS só o deixa vibrar dentro de um gesto do usuário — soltar o dedo
-// conta, arrastar não. Por isso no iPhone o "tec" vem ao soltar com o círculo completo.
-function vibrar(padrao: number | number[]) {
-  if ('vibrate' in navigator) navigator.vibrate(padrao)
-}
-
-let chave: HTMLLabelElement | null = null
-function tecIos() {
-  if ('vibrate' in navigator) return
-  if (!chave) {
-    chave = document.createElement('label')
-    chave.ariaHidden = 'true'
-    chave.style.cssText = 'position:fixed;left:-100px;top:0;opacity:0;pointer-events:none'
-    const input = document.createElement('input')
-    input.type = 'checkbox'
-    input.setAttribute('switch', '')
-    chave.appendChild(input)
-    document.body.appendChild(chave)
-  }
-  chave.click()
-}
-
 function acesosDe(px: number) {
   return Math.round(Math.min(1, px / LIMITE) * TRACOS)
 }
@@ -47,12 +23,8 @@ export function PuxarParaAtualizar() {
 
   useEffect(() => {
     function mudar(px: number) {
-      const antes = puxadoRef.current
       puxadoRef.current = px
       setPuxado(px)
-      // Um tique a cada traço que acende; ao completar, o estalo de "travou".
-      if (px >= LIMITE && antes < LIMITE) vibrar([25, 35, 45])
-      else if (acesosDe(px) > acesosDe(antes) && px < LIMITE) vibrar(8)
     }
     function comecar(e: TouchEvent) {
       inicio.current = null
@@ -71,14 +43,12 @@ export function PuxarParaAtualizar() {
       }
       mudar(Math.max(0, dy))
     }
-    function soltar(e: TouchEvent) {
+    function soltar() {
       if (!inicio.current) return
       inicio.current = null
       if (puxadoRef.current >= LIMITE) {
         setAtualizando(true)
-        if (e.type === 'touchend') tecIos()
-        // Pequena pausa para o toque acontecer antes de a página descarregar.
-        setTimeout(() => location.reload(), 150)
+        location.reload()
       } else {
         mudar(0)
       }
