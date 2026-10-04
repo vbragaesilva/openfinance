@@ -6,36 +6,28 @@ import { useEffect, useRef, useState } from 'react'
 const LIMITE = 90 // px de arrasto para completar o círculo
 const TRACOS = 12
 
-// Vibração: o iPhone não tem `navigator.vibrate`; lá (iOS 18+) o jeito é clicar num
-// <input type="checkbox" switch> escondido, que dá um toque leve do sistema. Android usa vibrate.
+// Vibração. Android: navigator.vibrate, com um tique a cada traço e um estalo ao completar.
+// iPhone: não há navigator.vibrate; o único toque disponível é o do <input type="checkbox" switch>
+// clicado por código, e o iOS só o deixa vibrar dentro de um gesto do usuário — soltar o dedo
+// conta, arrastar não. Por isso no iPhone o "tec" vem ao soltar com o círculo completo.
+function vibrar(padrao: number | number[]) {
+  if ('vibrate' in navigator) navigator.vibrate(padrao)
+}
+
 let chave: HTMLLabelElement | null = null
-function toque() {
-  if (navigator.vibrate) {
-    navigator.vibrate(8)
-    return
-  }
+function tecIos() {
+  if ('vibrate' in navigator) return
   if (!chave) {
     chave = document.createElement('label')
     chave.ariaHidden = 'true'
-    chave.style.display = 'none'
+    chave.style.cssText = 'position:fixed;left:-100px;top:0;opacity:0;pointer-events:none'
     const input = document.createElement('input')
     input.type = 'checkbox'
     input.setAttribute('switch', '')
     chave.appendChild(input)
-    document.head.appendChild(chave)
+    document.body.appendChild(chave)
   }
   chave.click()
-}
-
-// "Crack" ao completar o círculo: toques em sequência rápida, mais forte que o tique de cada traço.
-function estalo() {
-  if (navigator.vibrate) {
-    navigator.vibrate([25, 35, 45])
-    return
-  }
-  toque()
-  setTimeout(toque, 55)
-  setTimeout(toque, 110)
 }
 
 function acesosDe(px: number) {
@@ -59,8 +51,8 @@ export function PuxarParaAtualizar() {
       puxadoRef.current = px
       setPuxado(px)
       // Um tique a cada traço que acende; ao completar, o estalo de "travou".
-      if (px >= LIMITE && antes < LIMITE) estalo()
-      else if (acesosDe(px) > acesosDe(antes) && px < LIMITE) toque()
+      if (px >= LIMITE && antes < LIMITE) vibrar([25, 35, 45])
+      else if (acesosDe(px) > acesosDe(antes) && px < LIMITE) vibrar(8)
     }
     function comecar(e: TouchEvent) {
       inicio.current = null
@@ -79,12 +71,14 @@ export function PuxarParaAtualizar() {
       }
       mudar(Math.max(0, dy))
     }
-    function soltar() {
+    function soltar(e: TouchEvent) {
       if (!inicio.current) return
       inicio.current = null
       if (puxadoRef.current >= LIMITE) {
         setAtualizando(true)
-        location.reload()
+        if (e.type === 'touchend') tecIos()
+        // Pequena pausa para o toque acontecer antes de a página descarregar.
+        setTimeout(() => location.reload(), 150)
       } else {
         mudar(0)
       }
