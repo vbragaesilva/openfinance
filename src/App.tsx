@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, NaoAutenticado } from './api.ts'
 import { FormLancamento } from './componentes/FormLancamento.tsx'
+import { PuxarParaAtualizar } from './componentes/PuxarParaAtualizar.tsx'
 import { Erro, Folha } from './componentes/ui.tsx'
 import { ProvedorEstado } from './estado.tsx'
 import type { Dados } from './lib/tipos.ts'
@@ -108,6 +109,7 @@ export function App() {
 
   return (
     <ProvedorEstado dados={fase.dados} setDados={setDados} onNaoAutenticado={naoAutenticado}>
+      <PuxarParaAtualizar />
       <header className="topo">
         <a href="#/" className="marca">openfinance</a>
         <nav className="nav-topo" aria-label="Seções">
