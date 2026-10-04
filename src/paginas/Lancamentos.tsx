@@ -29,17 +29,30 @@ function ItemLancamento({ l, onAbrir }: { l: Lancamento; onAbrir: () => void }) 
   )
 }
 
+const SEM_CATEGORIA = '__sem__'
+
 export function Lancamentos() {
   const { dados, hoje, mesSel, setMesSel } = useEstado()
   const [todosMeses, setTodosMeses] = useState(false)
   const [modalidade, setModalidade] = useState<FiltroModalidade>('todos')
   const [ordem, setOrdem] = useState<Ordem>('data')
   const [busca, setBusca] = useState('')
+  // '' = todas; SEM_CATEGORIA = lançamentos sem categoria
+  const [categoria, setCategoria] = useState('')
   const [editando, setEditando] = useState<Lancamento | null>(null)
+
+  // Categorias que existem nos lançamentos, da mais usada para a menos usada.
+  const categorias = useMemo(() => {
+    const n = new Map<string, number>()
+    for (const l of dados.lancamentos) if (l.categoria) n.set(l.categoria, (n.get(l.categoria) ?? 0) + 1)
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c)
+  }, [dados.lancamentos])
 
   const lista = useMemo(() => {
     let l = todosMeses ? dados.lancamentos : doMes(dados.lancamentos, mesSel.ano, mesSel.mes)
     if (modalidade !== 'todos') l = l.filter((x) => x.modalidade === modalidade)
+    if (categoria === SEM_CATEGORIA) l = l.filter((x) => !x.categoria)
+    else if (categoria) l = l.filter((x) => x.categoria === categoria)
     const b = normalizar(busca.trim())
     if (b) l = l.filter((x) => normalizar(`${x.produto} ${x.local} ${x.categoria ?? ''}`).includes(b))
     return [...l].sort((a, b) =>
@@ -47,7 +60,7 @@ export function Lancamentos() {
         ? b.valor_centavos - a.valor_centavos
         : b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em),
     )
-  }, [dados.lancamentos, todosMeses, mesSel, modalidade, busca, ordem])
+  }, [dados.lancamentos, todosMeses, mesSel, modalidade, categoria, busca, ordem])
 
   const total = lista.reduce((s, l) => s + l.valor_centavos, 0)
 
@@ -93,6 +106,20 @@ export function Lancamentos() {
             { valor: 'valor', texto: 'Maiores' },
           ]}
         />
+        <select
+          className="filtro-select"
+          aria-label="Categoria"
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+        >
+          <option value="">Todas as categorias</option>
+          {categorias.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+          <option value={SEM_CATEGORIA}>Sem categoria</option>
+        </select>
         <input
           type="search"
           className="busca"
