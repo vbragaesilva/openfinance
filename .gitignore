@@ -5,3 +5,5 @@ dist/
 local.db*
 # dados pessoais: não versionar a planilha
 *.xlsx
+# cópias do banco de produção (dados pessoais)
+backups/
