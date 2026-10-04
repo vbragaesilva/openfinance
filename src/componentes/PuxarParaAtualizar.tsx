@@ -6,6 +6,42 @@ import { useEffect, useRef, useState } from 'react'
 const LIMITE = 90 // px de arrasto para completar o círculo
 const TRACOS = 12
 
+// Vibração: o iPhone não tem `navigator.vibrate`; lá (iOS 18+) o jeito é clicar num
+// <input type="checkbox" switch> escondido, que dá um toque leve do sistema. Android usa vibrate.
+let chave: HTMLLabelElement | null = null
+function toque() {
+  if (navigator.vibrate) {
+    navigator.vibrate(8)
+    return
+  }
+  if (!chave) {
+    chave = document.createElement('label')
+    chave.ariaHidden = 'true'
+    chave.style.display = 'none'
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.setAttribute('switch', '')
+    chave.appendChild(input)
+    document.head.appendChild(chave)
+  }
+  chave.click()
+}
+
+// "Crack" ao completar o círculo: toques em sequência rápida, mais forte que o tique de cada traço.
+function estalo() {
+  if (navigator.vibrate) {
+    navigator.vibrate([25, 35, 45])
+    return
+  }
+  toque()
+  setTimeout(toque, 55)
+  setTimeout(toque, 110)
+}
+
+function acesosDe(px: number) {
+  return Math.round(Math.min(1, px / LIMITE) * TRACOS)
+}
+
 function ativo() {
   const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
   return standalone && matchMedia('(max-width: 759px)').matches
@@ -19,8 +55,12 @@ export function PuxarParaAtualizar() {
 
   useEffect(() => {
     function mudar(px: number) {
+      const antes = puxadoRef.current
       puxadoRef.current = px
       setPuxado(px)
+      // Um tique a cada traço que acende; ao completar, o estalo de "travou".
+      if (px >= LIMITE && antes < LIMITE) estalo()
+      else if (acesosDe(px) > acesosDe(antes) && px < LIMITE) toque()
     }
     function comecar(e: TouchEvent) {
       inicio.current = null
@@ -63,12 +103,12 @@ export function PuxarParaAtualizar() {
 
   if (!atualizando && puxado === 0) return null
   const progresso = atualizando ? 1 : Math.min(1, puxado / LIMITE)
-  const acesos = Math.round(progresso * TRACOS)
+  const acesos = acesosDe(puxado)
   const desce = atualizando ? 1 : progresso
 
   return (
     <div
-      className={`puxar-atualizar${atualizando ? ' girando' : ''}`}
+      className={`puxar-atualizar${atualizando ? ' girando' : progresso >= 1 ? ' travado' : ''}`}
       style={{ transform: `translate(-50%, ${desce * 28}px)`, opacity: Math.min(1, progresso * 1.5) }}
       role="status"
       aria-label={atualizando ? 'Atualizando' : 'Puxe para atualizar'}
