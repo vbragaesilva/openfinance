@@ -94,6 +94,11 @@ Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API
 
 Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira lançamento positivo na plataforma do Splitwise, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado e aparece para revisar na página Lançamentos. Toda notificação é salva crua na tabela `notificacoes`, com o status e o lançamento criado.
 
-### Nubank por notificação (em coleta)
+### Nubank por notificação
 
-Automação "Ao receber notificação do Nubank" → `POST /api/lancamentos/notificacao` com `{"titulo", "subtitulo", "mensagem"}`. Por enquanto só guarda na tabela `notificacoes_nubank` (JSON exato em `corpo`), sem criar lançamento. `npm run db:nubank` mostra as capturadas. O leitor será escrito com base nas notificações reais.
+Automação "Ao receber notificação do Nubank" → `POST /api/lancamentos/notificacao` com `{"titulo", "subtitulo", "mensagem"}`. Toda notificação fica guardada em `notificacoes_nubank` (JSON exato em `corpo`). Regras de lançamento (`src/lib/nubank.ts`):
+
+- **"Compra no crédito aprovada"** ("Compra de R$ X APROVADA em LOJA para o cartão com final 1234.") vira lançamento na plataforma do cartão (integração `nubank-credito` ou, sem ela, a plataforma "Crédito Nubank"), com local = loja, data = dia da notificação, sem categoria. Exatamente R$ 5,90 na apple.com entra como Fixo (iCloud).
+- O resto (fatura fechada, promoções, Pix, débito...) só fica guardado até ganhar regra.
+
+`npm run db:nubank` mostra as notificações; `npm run db:nubank -- --lancar` lança as compras guardadas antes do leitor existir.

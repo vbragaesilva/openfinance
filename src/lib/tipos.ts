@@ -18,8 +18,9 @@ export interface Plataforma {
   /** Inativa some do formulário de lançamento, mas o histórico continua contando. */
   ativa: boolean
   ordem: number
-  /** 'splitwise' = recebe os splits criados pelas notificações do Splitwise. */
-  integracao: 'splitwise' | null
+  /** 'splitwise' = recebe os splits das notificações do Splitwise; 'nubank-credito' = recebe as compras
+   *  das notificações do Nubank (sem marca, vale a plataforma chamada "Crédito Nubank"). */
+  integracao: 'splitwise' | 'nubank-credito' | null
 }
 
 export interface Lancamento {
