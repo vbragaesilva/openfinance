@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useEstado } from '../estado.tsx'
 import { brl, hojeISO } from '../lib/formato.ts'
+import { agrupar, padronizarDigitado, type Grupo } from '../lib/padronizar.ts'
 import { gerarParcelas } from '../lib/parcelas.ts'
 import type { Lancamento, Tipo } from '../lib/tipos.ts'
 import { AcoesForm, Campo, CampoValor, Erro, Segmentado } from './ui.tsx'
@@ -10,6 +11,71 @@ function maisUsados(valores: (string | null)[]) {
   const n = new Map<string, number>()
   for (const v of valores) if (v) n.set(v, (n.get(v) ?? 0) + 1)
   return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v)
+}
+
+/** Nomes usados num campo, agrupados (vila/Vila/VILA = um só), do mais usado para o menos. */
+function grupos(valores: string[], campo: 'local' | 'produto'): Grupo[] {
+  const usos = new Map<string, number>()
+  for (const v of valores) if (v.trim()) usos.set(v, (usos.get(v) ?? 0) + 1)
+  return agrupar(usos, campo).sort((a, b) => b.total - a.total)
+}
+
+/** Campo de texto que padroniza ao sair: "VILA" vira "Vila"; "Villa" pergunta "você quis dizer Vila?". */
+function CampoNome(props: {
+  id: string
+  rotulo: string
+  valor: string
+  onChange: (v: string) => void
+  grupos: Grupo[]
+}) {
+  const [sugestao, setSugestao] = useState<string | null>(null)
+  const padronizar = () => {
+    const r = padronizarDigitado(props.valor, props.grupos)
+    if (r.valor !== props.valor) props.onChange(r.valor)
+    setSugestao(r.sugestao)
+  }
+  return (
+    <Campo
+      rotulo={props.rotulo}
+      htmlFor={props.id}
+      dica={
+        sugestao && (
+          <span className="quis-dizer">
+            Você quis dizer{' '}
+            <button
+              type="button"
+              className="btn-texto"
+              onClick={() => {
+                props.onChange(sugestao)
+                setSugestao(null)
+              }}
+            >
+              {sugestao}
+            </button>
+            ?{' '}
+            <button type="button" className="btn-texto mudo" onClick={() => setSugestao(null)}>
+              não
+            </button>
+          </span>
+        )
+      }
+    >
+      <input
+        id={props.id}
+        list={`${props.id}-lista`}
+        value={props.valor}
+        onChange={(e) => {
+          props.onChange(e.target.value)
+          setSugestao(null)
+        }}
+        onBlur={padronizar}
+        autoComplete="off"
+      />
+      <datalist id={`${props.id}-lista`}>
+        {props.grupos.slice(0, 200).map((g) => <option key={g.chave} value={g.canonica} />)}
+      </datalist>
+    </Campo>
+  )
 }
 
 export function FormLancamento(props: {
@@ -42,8 +108,8 @@ export function FormLancamento(props: {
 
   const sugestoes = useMemo(
     () => ({
-      produtos: maisUsados(dados.lancamentos.map((x) => x.produto)).slice(0, 200),
-      locais: maisUsados(dados.lancamentos.map((x) => x.local)).slice(0, 200),
+      produtos: grupos(dados.lancamentos.map((x) => x.produto), 'produto'),
+      locais: grupos(dados.lancamentos.map((x) => x.local), 'local'),
       categorias: maisUsados(dados.lancamentos.map((x) => x.categoria)),
     }),
     [dados.lancamentos],
@@ -58,7 +124,14 @@ export function FormLancamento(props: {
     if (valor == null) return setErro('Informe o valor.')
     if (plataformaId == null) return setErro('Escolha a plataforma.')
     const cat = novaCategoria.trim() || categoria
-    const base = { produto, local, categoria: cat, plataforma_id: plataformaId, tipo: tipo || null }
+    // Padroniza também aqui, para o caso de salvar sem sair do campo.
+    const base = {
+      produto: padronizarDigitado(produto, sugestoes.produtos).valor,
+      local: padronizarDigitado(local, sugestoes.locais).valor,
+      categoria: cat,
+      plataforma_id: plataformaId,
+      tipo: tipo || null,
+    }
     setSalvando(true)
     setErro(null)
     try {
@@ -113,18 +186,8 @@ export function FormLancamento(props: {
       </fieldset>
 
       <div className="linha-2">
-        <Campo rotulo="Produto" htmlFor="l-produto">
-          <input id="l-produto" list="l-produtos" value={produto} onChange={(e) => setProduto(e.target.value)} autoComplete="off" />
-          <datalist id="l-produtos">
-            {sugestoes.produtos.map((p) => <option key={p} value={p} />)}
-          </datalist>
-        </Campo>
-        <Campo rotulo="Local" htmlFor="l-local">
-          <input id="l-local" list="l-locais" value={local} onChange={(e) => setLocal(e.target.value)} autoComplete="off" />
-          <datalist id="l-locais">
-            {sugestoes.locais.map((p) => <option key={p} value={p} />)}
-          </datalist>
-        </Campo>
+        <CampoNome id="l-produto" rotulo="Produto" valor={produto} onChange={setProduto} grupos={sugestoes.produtos} />
+        <CampoNome id="l-local" rotulo="Local" valor={local} onChange={setLocal} grupos={sugestoes.locais} />
       </div>
 
       <div className="linha-2">

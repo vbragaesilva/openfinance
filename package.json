@@ -16,7 +16,8 @@
     "db:import": "node --env-file-if-exists=.env scripts/import-xlsx.ts",
     "db:copiar": "node --env-file-if-exists=.env scripts/copiar-para-turso.ts",
     "db:log-atalhos": "node --env-file-if-exists=.env scripts/log-atalhos.ts",
-    "db:nubank": "node --env-file-if-exists=.env scripts/notificacoes-nubank.ts"
+    "db:nubank": "node --env-file-if-exists=.env scripts/notificacoes-nubank.ts",
+    "db:padronizar": "node --env-file-if-exists=.env scripts/padronizar.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
