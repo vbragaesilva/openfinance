@@ -17,7 +17,8 @@
     "db:copiar": "node --env-file-if-exists=.env scripts/copiar-para-turso.ts",
     "db:log-atalhos": "node --env-file-if-exists=.env scripts/log-atalhos.ts",
     "db:nubank": "node --env-file-if-exists=.env scripts/notificacoes-nubank.ts",
-    "pluggy:explorar": "node --env-file-if-exists=.env scripts/pluggy-explorar.ts"
+    "pluggy:explorar": "node --env-file-if-exists=.env scripts/pluggy-explorar.ts",
+    "pluggy:conectar": "node --env-file-if-exists=.env scripts/pluggy-conectar.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
