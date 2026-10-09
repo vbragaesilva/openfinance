@@ -97,3 +97,16 @@ Automação "Ao receber notificação do Splitwise" → `POST /api/split/notific
 ### Nubank por notificação (desativado)
 
 Desativado em 09/10/2026 a pedido do usuário: `POST /api/lancamentos/notificacao` responde 410 e não grava nada. As notificações já recebidas continuam em `notificacoes_nubank` (`npm run db:nubank` mostra). O leitor de "Compra no crédito aprovada" segue em `src/lib/nubank.ts`.
+
+### Open Finance pela Pluggy (Meu Pluggy)
+
+As compras no cartão de crédito do Nubank entram sozinhas, lidas do Open Finance pela [Pluggy](https://pluggy.ai) com o conector gratuito Meu Pluggy (`server/pluggy.ts`; regras em `src/lib/pluggy.ts`):
+
+- **Lança** cada compra no cartão (à vista, Pix no crédito, parcelas) na plataforma "Crédito Nubank", com a loja como local, sem produto nem categoria. R$ 5,90 na apple.com = Fixo. A parcela 1 fica na data da compra; as seguintes, no dia de fechamento do mês em que caem.
+- **Liga sem duplicar** a compra que já estava lançada (à mão ou pela antiga notificação): mesmo valor e mesmo dia; se não houver, o lançamento do dia anterior (compra depois da meia-noite); parcela seguinte, o mesmo mês. Cada lançamento liga com uma compra só, e os pares do mesmo dia são feitos antes, então o café de hoje nunca pega o lançamento do café de ontem.
+- **Estorno** entra negativo e **IOF** de compra internacional entra como lançamento próprio (local "IOF"): a Pluggy não diz a qual compra cada um se refere. Compra internacional entra pelo valor em reais.
+- **Só guarda**: pagamento de fatura, outros créditos no cartão ("revisar"), conta corrente/Pix e o Inter. Tudo vai cru para a tabela `pluggy_transacoes`, com o status.
+
+Quando roda: no webhook da Pluggy (`POST /api/pluggy/webhook?chave=PLUGGY_WEBHOOK_SECRET`) e sob demanda (`POST /api/pluggy/sincronizar`, logado; `?simular=1` só mostra o que faria; `?dias=N` muda a janela, padrão 10). O Meu Pluggy atualiza os dados do banco cerca de uma vez por dia; uma compra pode levar até um dia para aparecer.
+
+Variáveis na Netlify: `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` (dashboard.pluggy.ai → aplicação → Credenciais), `PLUGGY_ITEM_IDS` (ids das conexões, separados por vírgula; `npm run pluggy:conectar` abre o widget e grava no `.env`) e `PLUGGY_WEBHOOK_SECRET` (qualquer texto longo aleatório, o mesmo usado na URL do webhook). `npm run pluggy:explorar` mostra o que a Pluggy tem, sem gravar nada.

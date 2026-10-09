@@ -21,7 +21,7 @@ const COMPRA = /compra de (?:R\$|BRL)\s*([\d.]+(?:,\d{1,2})?)\s+aprovada em\s+(.
  * Assinatura da Apple que já está nos fixos (iCloud): só quando for exatamente R$ 5,90 na
  * apple.com. Outras compras na Apple (jogos, apps) aparecem com o mesmo estabelecimento.
  */
-const fixoPelaCompra = (local: string, centavos: number): Tipo =>
+export const fixoPelaCompra = (local: string, centavos: number): Tipo =>
   /apple\.com/i.test(local) && centavos === 590 ? 'Fixo' : 'Variável'
 
 export function lerNotificacaoNubank(n: Notificacao): LeituraNubank {
