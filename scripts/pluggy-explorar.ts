@@ -37,12 +37,16 @@ for (const itemId of PLUGGY_ITEM_IDS.split(',').map((s) => s.trim()).filter(Bool
   const contas = (await chamar(`/accounts?itemId=${itemId}`, {}, apiKey)).results as any[]
   const porConta: unknown[] = []
   for (const c of contas) {
+    // /v2/transactions com cursor (o /transactions antigo responde 410). `next` traz o cursor `after`.
     const transacoes: any[] = []
-    for (let page = 1; ; page++) {
-      const r = await chamar(`/transactions?accountId=${c.id}&from=${de}&pageSize=500&page=${page}`, {}, apiKey)
-      transacoes.push(...r.results)
-      if (page >= r.totalPages) break
-    }
+    let after: string | null = null
+    do {
+      const q = new URLSearchParams({ accountId: c.id, dateFrom: de, ...(after ? { after } : {}) })
+      const r = await chamar(`/v2/transactions?${q}`, {}, apiKey)
+      transacoes.push(...(r.results ?? []))
+      const next: string | null = r.next ?? null
+      after = next ? new URLSearchParams(next.includes('?') ? next.slice(next.indexOf('?') + 1) : next).get('after') : null
+    } while (after)
     console.log(`  ${c.type}/${c.subtype} "${c.name}" ${c.number ?? ''} · saldo ${c.balance} · ${transacoes.length} transações desde ${de}`)
     for (const t of transacoes.slice(0, 5)) {
       console.log(`    ${t.date?.slice(0, 10)} ${t.type} ${t.amount} · ${t.description} · cat=${t.category ?? '-'}${t.merchant?.name ? ` · loja=${t.merchant.name}` : ''}${t.creditCardMetadata?.totalInstallments ? ` · parcela ${t.creditCardMetadata.installmentNumber}/${t.creditCardMetadata.totalInstallments}` : ''}`)
