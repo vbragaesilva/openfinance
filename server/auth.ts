@@ -14,7 +14,8 @@ async function hmac(secret: string, msg: string) {
   return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(msg)))
 }
 
-function iguais(a: string, b: string) {
+/** Comparação em tempo constante (para chaves e segredos). */
+export function iguais(a: string, b: string) {
   const ba = enc.encode(a)
   const bb = enc.encode(b)
   let diff = ba.length ^ bb.length

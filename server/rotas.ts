@@ -1,6 +1,7 @@
 import type { InStatement, Row } from '@libsql/client/web'
 import { db } from './db.ts'
-import { cookieLogout, login, modoAuth, sessaoValida, tokenApiValido } from './auth.ts'
+import { cookieLogout, iguais, login, modoAuth, sessaoValida, tokenApiValido } from './auth.ts'
+import { sincronizarPluggy } from './pluggy.ts'
 import { brl, lerValor } from '../src/lib/formato.ts'
 import { lerNotificacao } from '../src/lib/splitwise.ts'
 import type { Dados, Plataforma } from '../src/lib/tipos.ts'
@@ -272,7 +273,12 @@ async function registrarAtalho(req: Request, caminho: string, corpo: string | nu
   })
 }
 
-export async function handle(req: Request): Promise<Response> {
+/** `waitUntil` vem do contexto da Netlify: deixa trabalho rodando depois de responder (webhook da Pluggy). */
+export interface Contexto {
+  waitUntil?: (p: Promise<unknown>) => void
+}
+
+export async function handle(req: Request, contexto: Contexto = {}): Promise<Response> {
   const caminho = new URL(req.url).pathname
   const via = req.headers.get('authorization') ? 'token' : req.headers.get('cookie') ? 'cookie' : 'sem auth'
   // Corpo exato de tudo que não vem da tela do app (atalhos, com ou sem chave), para depurar.
@@ -281,7 +287,7 @@ export async function handle(req: Request): Promise<Response> {
 
   let resposta: Response
   try {
-    resposta = await rotear(req)
+    resposta = await rotear(req, contexto)
   } catch (e) {
     if (e instanceof ErroHttp) resposta = json({ erro: e.message }, e.status)
     else {
@@ -306,7 +312,7 @@ export async function handle(req: Request): Promise<Response> {
   return resposta
 }
 
-async function rotear(req: Request): Promise<Response> {
+async function rotear(req: Request, contexto: Contexto): Promise<Response> {
   const url = new URL(req.url)
   const partes = url.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean)
   const metodo = req.method
@@ -329,7 +335,31 @@ async function rotear(req: Request): Promise<Response> {
     return json({ ok: true }, 200, { 'set-cookie': cookieLogout(seguro) })
   }
 
+  // Webhook da Pluggy (registrado com ?chave=PLUGGY_WEBHOOK_SECRET na URL, porque a Pluggy não assina
+  // as chamadas). Responde na hora (ela exige resposta em até 5 s) e sincroniza em seguida.
+  if (partes[0] === 'pluggy' && partes[1] === 'webhook' && metodo === 'POST') {
+    const segredo = process.env.PLUGGY_WEBHOOK_SECRET
+    if (!segredo || !iguais(url.searchParams.get('chave') ?? '', segredo)) return json({ erro: 'Não autenticado' }, 401)
+    const evento = (await corpoJson(req)) as { event?: unknown; itemId?: unknown }
+    const ids = (process.env.PLUGGY_ITEM_IDS ?? '').split(',').map((s) => s.trim())
+    if (!ids.includes(String(evento.itemId)) || !/^(item\/updated|transactions\/)/.test(String(evento.event))) {
+      return json({ ok: true, ignorado: true })
+    }
+    const tarefa = sincronizarPluggy()
+      .then((r) => console.log(`Pluggy (${evento.event}): ${JSON.stringify(r)}`))
+      .catch((e) => console.error('Falha na sincronização da Pluggy (webhook)', e))
+    if (contexto.waitUntil) contexto.waitUntil(tarefa)
+    else await tarefa
+    return json({ ok: true }, 202)
+  }
+
   if (!(await sessaoValida(req))) return json({ erro: 'Não autenticado' }, 401)
+
+  // Sincronização sob demanda com a Pluggy. ?simular=1 só mostra o que faria; ?dias=N muda a janela (padrão 10).
+  if (partes[0] === 'pluggy' && partes[1] === 'sincronizar' && metodo === 'POST') {
+    const dias = url.searchParams.has('dias') ? (validar('dias', { t: 'inteiro', min: 1, max: 90 }, Number(url.searchParams.get('dias'))) as number) : undefined
+    return json(await sincronizarPluggy({ dias, simular: url.searchParams.get('simular') === '1' }))
+  }
 
   if (partes[0] === 'dados' && metodo === 'GET') return json(await carregarDados())
 

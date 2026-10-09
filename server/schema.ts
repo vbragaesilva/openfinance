@@ -104,6 +104,26 @@ export const SCHEMA: string[] = [
     resposta TEXT
   )`,
 
+  // Transações vindas da Pluggy (Open Finance pelo Meu Pluggy), uma linha por id da Pluggy, com o JSON cru.
+  // status: 'lancada' (criou `lancamento_id`), 'ja_existia' (ligada a um lançamento que já existia),
+  // 'mesma_compra' (mesma compra com outro id), 'ignorada', 'revisar' ou 'sem_plataforma'.
+  // `chave` reconhece a mesma compra quando a Pluggy troca o id (ver chaveCompra em src/lib/pluggy.ts).
+  `CREATE TABLE IF NOT EXISTS pluggy_transacoes (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    conta_id TEXT NOT NULL,
+    chave TEXT NOT NULL,
+    data TEXT NOT NULL,
+    descricao TEXT NOT NULL DEFAULT '',
+    valor_centavos INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    motivo TEXT,
+    lancamento_id INTEGER,
+    bruto TEXT NOT NULL,
+    importada_em TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS pluggy_transacoes_chave ON pluggy_transacoes (chave)`,
+
   // "Caixa Atual" (saldo da conta) que era digitado à mão em cada bloco de mês do PAINEL.
   `CREATE TABLE IF NOT EXISTS caixa_mensal (
     ano INTEGER NOT NULL,
