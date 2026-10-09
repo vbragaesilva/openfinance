@@ -80,24 +80,45 @@ export function classificar(conta: PluggyConta, t: PluggyTransacao, fechamento: 
   return { acao: 'lancar', data, local, valor_centavos: centavos, tipo: fixoPelaCompra(local, centavos), parcela }
 }
 
-const dias = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000
+const diaAnterior = (data: string) => new Date(Date.parse(data) - 86_400_000).toISOString().slice(0, 10)
 
 /**
- * Lançamento já existente que corresponde à compra (lançado à mão ou pela antiga notificação):
- * mesmo valor, na mesma plataforma, ainda não ligado a outra transação da Pluggy, e
- *  - parcela seguinte: no mesmo mês;
- *  - compra à vista ou 1ª parcela: até 3 dias de diferença (o mais próximo).
+ * Liga cada compra a um lançamento que já existia (lançado à mão ou pela antiga notificação), cada
+ * lançamento a no máximo uma compra. Precisa do mesmo valor e:
+ *  - parcela seguinte: o mesmo mês;
+ *  - compra à vista ou 1ª parcela: o mesmo dia ou, se não houver, o lançamento do dia anterior
+ *    (compra logo depois da meia-noite lançada com a data da noite).
+ * Primeiro todos os pares do mesmo dia, depois os do dia anterior: um café de hoje nunca pega o
+ * lançamento do café de ontem. Devolve, para cada compra, o lançamento ligado ou null.
  */
-export function acharExistente<L extends { id: number; data: string; valor_centavos: number }>(
-  c: Extract<Classificacao, { acao: 'lancar' }>,
+export function parear<L extends { id: number; data: string; valor_centavos: number }>(
+  compras: Extract<Classificacao, { acao: 'lancar' }>[],
   candidatos: L[],
-): L | null {
-  const mesmos = candidatos.filter((l) => l.valor_centavos === c.valor_centavos)
-  if (c.parcela && c.parcela.n > 1) return mesmos.find((l) => l.data.slice(0, 7) === c.data.slice(0, 7)) ?? null
-  const perto = mesmos.filter((l) => dias(l.data, c.data) <= 3).sort((a, b) => dias(a.data, c.data) - dias(b.data, c.data))
-  return perto[0] ?? null
+): (L | null)[] {
+  const livres = new Set(candidatos)
+  const pares: (L | null)[] = compras.map(() => null)
+  const regras = [
+    (c: (typeof compras)[number], l: L) =>
+      c.parcela && c.parcela.n > 1 ? l.data.slice(0, 7) === c.data.slice(0, 7) : l.data === c.data,
+    (c: (typeof compras)[number], l: L) => !(c.parcela && c.parcela.n > 1) && l.data === diaAnterior(c.data),
+  ]
+  for (const regra of regras) {
+    compras.forEach((c, i) => {
+      if (pares[i]) return
+      const l = candidatos.find((l) => livres.has(l) && l.valor_centavos === c.valor_centavos && regra(c, l))
+      if (l) {
+        pares[i] = l
+        livres.delete(l)
+      }
+    })
+  }
+  return pares
 }
 
-/** Chave de "mesma compra" para quando a Pluggy troca o id (pendente → lançada na fatura). */
+/**
+ * Chave de "mesma compra" para quando a Pluggy troca o id (pendente → lançada na fatura): conta, valor,
+ * horário exato da compra (com segundos, para dois cafés iguais no mesmo dia serem compras diferentes)
+ * e número da parcela.
+ */
 export const chaveCompra = (t: PluggyTransacao) =>
-  `${t.accountId}|${Math.round(Math.abs(t.amount) * 100)}|${dataSP(t.creditCardMetadata?.purchaseDate || t.creditCardMetadata?.transactionDateTime || t.date)}|${t.creditCardMetadata?.installmentNumber ?? ''}`
+  `${t.accountId}|${Math.round(Math.abs(t.amount) * 100)}|${t.creditCardMetadata?.purchaseDate || t.creditCardMetadata?.transactionDateTime || t.date}|${t.creditCardMetadata?.installmentNumber ?? ''}`

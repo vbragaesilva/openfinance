@@ -4,7 +4,7 @@
 // Idempotente: transação já vista (pelo id) é pulada; a mesma compra com id novo é reconhecida pela chave.
 import type { InStatement } from '@libsql/client/web'
 import { db } from './db.ts'
-import { acharExistente, chaveCompra, classificar, dataSP, type PluggyConta, type PluggyTransacao } from '../src/lib/pluggy.ts'
+import { chaveCompra, classificar, parear, dataSP, type Classificacao, type PluggyConta, type PluggyTransacao } from '../src/lib/pluggy.ts'
 
 const BASE = 'https://api.pluggy.ai'
 
@@ -80,6 +80,7 @@ export async function sincronizarPluggy(opcoes: { dias?: number; simular?: boole
   const lancamentoPorChave = new Map(vistas.filter((v) => v.lancamento_id != null).map((v) => [String(v.chave), Number(v.lancamento_id)]))
 
   // Lançamentos do cartão que ainda não estão ligados a nenhuma transação da Pluggy (candidatos a "já existia").
+  // Começa 40 dias antes da janela por causa das parcelas.
   const de = dataSP(new Date(Date.now() - (dias + 40) * 86_400_000).toISOString())
   const candidatos = cartaoNubank
     ? (
@@ -95,12 +96,21 @@ export async function sincronizarPluggy(opcoes: { dias?: number; simular?: boole
   const resumo: ResumoSincronizacao = { lancadas: [], ligadas: 0, mesmaCompra: 0, ignoradas: 0, revisar: 0, semPlataforma: 0, jaVistas: 0, simulacao: simular }
   const agora = agoraSP()
 
-  for (const { itemId, conta, t, plataforma } of coletadas) {
-    if (idsVistos.has(t.id)) {
-      resumo.jaVistas++
-      continue
-    }
-    const chave = chaveCompra(t)
+  // Primeiro decide o que cada transação nova é; os pares com lançamentos existentes saem todos de uma
+  // vez (ver parear), para a ordem das transações não mudar qual lançamento cada uma pega.
+  const novas = coletadas.filter(({ t }) => !idsVistos.has(t.id))
+  resumo.jaVistas = coletadas.length - novas.length
+  const planos = novas.map((x) => ({
+    ...x,
+    chave: chaveCompra(x.t),
+    c: x.conta.type === 'CREDIT' && !x.plataforma ? null : classificar(x.conta, x.t, Number(x.plataforma?.fechamento ?? 1)),
+  }))
+  const compras = planos.filter((p) => p.c?.acao === 'lancar' && !lancamentoPorChave.has(p.chave))
+  const pares = parear(compras.map((p) => p.c as Extract<Classificacao, { acao: 'lancar' }>), candidatos)
+  const existentes = new Map(compras.map((p, i) => [p, pares[i]]))
+
+  for (const p of planos) {
+    const { itemId, conta, t, plataforma, chave, c } = p
     const registro = (status: string, motivo: string | null, lancamento: number | 'novo' | null): InStatement => ({
       sql: `INSERT INTO pluggy_transacoes (id, item_id, conta_id, chave, data, descricao, valor_centavos, status, motivo, lancamento_id, bruto, importada_em)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${lancamento === 'novo' ? 'last_insert_rowid()' : '?'}, ?, ?)`,
@@ -111,40 +121,35 @@ export async function sincronizarPluggy(opcoes: { dias?: number; simular?: boole
     })
     let stmts: InStatement[]
 
-    if (conta.type === 'CREDIT' && !plataforma) {
+    if (!c) {
       resumo.semPlataforma++
       stmts = [registro('sem_plataforma', 'cartão sem plataforma no app', null)]
     } else if (lancamentoPorChave.has(chave)) {
       resumo.mesmaCompra++
       stmts = [registro('mesma_compra', 'mesma compra com outro id na Pluggy', lancamentoPorChave.get(chave)!)]
+    } else if (c.acao !== 'lancar') {
+      if (c.acao === 'ignorar') resumo.ignoradas++
+      else resumo.revisar++
+      stmts = [registro(c.acao === 'ignorar' ? 'ignorada' : 'revisar', c.motivo, null)]
     } else {
-      const c = classificar(conta, t, Number(plataforma?.fechamento ?? 1))
-      if (c.acao !== 'lancar') {
-        if (c.acao === 'ignorar') resumo.ignoradas++
-        else resumo.revisar++
-        stmts = [registro(c.acao === 'ignorar' ? 'ignorada' : 'revisar', c.motivo, null)]
+      const existente = existentes.get(p)
+      if (existente) {
+        resumo.ligadas++
+        lancamentoPorChave.set(chave, existente.id)
+        stmts = [registro('ja_existia', 'já estava lançada', existente.id)]
       } else {
-        const existente = acharExistente(c, candidatos)
-        if (existente) {
-          resumo.ligadas++
-          candidatos.splice(candidatos.indexOf(existente), 1)
-          lancamentoPorChave.set(chave, existente.id)
-          stmts = [registro('ja_existia', 'já estava lançada', existente.id)]
-        } else {
-          resumo.lancadas.push({ data: c.data, local: c.local, valor_centavos: c.valor_centavos, tipo: c.tipo })
-          stmts = [
-            {
-              sql: `INSERT INTO lancamentos (criado_em, data, produto, local, valor_centavos, categoria, plataforma_id, tipo)
-                    VALUES (?, ?, '', ?, ?, NULL, ?, ?)`,
-              args: [agora, c.data, c.local, c.valor_centavos, Number(plataforma!.id), c.tipo],
-            },
-            registro('lancada', null, 'novo'),
-          ]
-        }
+        resumo.lancadas.push({ data: c.data, local: c.local, valor_centavos: c.valor_centavos, tipo: c.tipo })
+        stmts = [
+          {
+            sql: `INSERT INTO lancamentos (criado_em, data, produto, local, valor_centavos, categoria, plataforma_id, tipo)
+                  VALUES (?, ?, '', ?, ?, NULL, ?, ?)`,
+            args: [agora, c.data, c.local, c.valor_centavos, Number(plataforma!.id), c.tipo],
+          },
+          registro('lancada', null, 'novo'),
+        ]
       }
     }
 
-    idsVistos.add(t.id)
     if (simular) continue
     try {
       await db().batch(stmts, 'write')

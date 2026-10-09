@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { acharExistente, chaveCompra, classificar, type PluggyConta, type PluggyTransacao } from './pluggy.ts'
+import { chaveCompra, classificar, parear, type PluggyConta, type PluggyTransacao } from './pluggy.ts'
 
 const cartao: PluggyConta = { id: 'c1', type: 'CREDIT', subtype: 'CREDIT_CARD', name: 'gold' }
 const corrente: PluggyConta = { id: 'b1', type: 'BANK', subtype: 'CHECKING_ACCOUNT', name: 'Nu Pagamentos S.A.' }
@@ -43,17 +43,52 @@ test('pagamento de fatura, conta corrente e IOF não são lançados', () => {
   assert.equal(classificar(corrente, t({ accountId: 'b1', amount: -37 }), 1).acao, 'ignorar')
 })
 
-test('acharExistente: mesmo valor, até 3 dias, o mais próximo; parcela pelo mês', () => {
+const avista = (data: string, v = 300) => ({ acao: 'lancar' as const, data, local: '', valor_centavos: v, tipo: 'Variável' as const, parcela: null })
+const ids = (r: ({ id: number } | null)[]) => r.map((l) => l?.id ?? null)
+
+test('parear: café toda manhã, cada um com o seu dia', () => {
   const lancs = [
     { id: 1, data: '2026-10-05', valor_centavos: 300 },
     { id: 2, data: '2026-10-06', valor_centavos: 300 },
-    { id: 3, data: '2026-11-01', valor_centavos: 4650 },
+    { id: 3, data: '2026-10-07', valor_centavos: 300 },
   ]
-  const avista = (data: string, v: number) => ({ acao: 'lancar' as const, data, local: '', valor_centavos: v, tipo: 'Variável' as const, parcela: null })
-  assert.equal(acharExistente(avista('2026-10-06', 300), lancs)?.id, 2)
-  assert.equal(acharExistente(avista('2026-10-10', 300), lancs), null)
-  assert.equal(acharExistente(avista('2026-10-06', 301), lancs), null)
-  assert.equal(acharExistente({ ...avista('2026-11-01', 4650), parcela: { n: 5, total: 6 } }, lancs)?.id, 3)
+  assert.deepEqual(ids(parear([avista('2026-10-05'), avista('2026-10-06'), avista('2026-10-07')], lancs)), [1, 2, 3])
+})
+
+test('parear: café de ontem não lançado não pega o lançamento de hoje', () => {
+  // Só o de hoje (06) foi lançado à mão: o de ontem (05) fica sem par e vira lançamento novo.
+  const lancs = [{ id: 2, data: '2026-10-06', valor_centavos: 300 }]
+  assert.deepEqual(ids(parear([avista('2026-10-05'), avista('2026-10-06')], lancs)), [null, 2])
+  // Mesmo se só o de ontem vier nesta rodada.
+  assert.deepEqual(ids(parear([avista('2026-10-05')], lancs)), [null])
+})
+
+test('parear: dois cafés no mesmo dia e só um lançado', () => {
+  const lancs = [{ id: 1, data: '2026-10-06', valor_centavos: 300 }]
+  assert.deepEqual(ids(parear([avista('2026-10-06'), avista('2026-10-06')], lancs)), [1, null])
+})
+
+test('parear: compra depois da meia-noite lançada com a data da noite', () => {
+  const lancs = [{ id: 1, data: '2026-10-02', valor_centavos: 689 }]
+  assert.deepEqual(ids(parear([avista('2026-10-03', 689)], lancs)), [1])
+  // ...mas não o contrário, nem 2 dias, nem outro valor.
+  assert.deepEqual(ids(parear([avista('2026-10-01', 689)], lancs)), [null])
+  assert.deepEqual(ids(parear([avista('2026-10-04', 689)], lancs)), [null])
+  assert.deepEqual(ids(parear([avista('2026-10-02', 690)], lancs)), [null])
+})
+
+test('parear: o mesmo dia tem prioridade sobre o dia anterior', () => {
+  // A compra do dia 07 poderia pegar o lançamento do 06, mas ele é do café do 06.
+  const lancs = [
+    { id: 1, data: '2026-10-06', valor_centavos: 300 },
+    { id: 2, data: '2026-10-07', valor_centavos: 300 },
+  ]
+  assert.deepEqual(ids(parear([avista('2026-10-07'), avista('2026-10-06')], lancs)), [2, 1])
+})
+
+test('parear: parcela seguinte pelo mês', () => {
+  const lancs = [{ id: 3, data: '2026-11-01', valor_centavos: 4650 }]
+  assert.deepEqual(ids(parear([{ ...avista('2026-11-01', 4650), parcela: { n: 5, total: 6 } }], lancs)), [3])
 })
 
 test('chaveCompra é a mesma quando só o id e o status mudam', () => {
@@ -61,4 +96,6 @@ test('chaveCompra é a mesma quando só o id e o status mudam', () => {
   const b = t({ id: 'b', status: 'POSTED' })
   assert.equal(chaveCompra(a), chaveCompra(b))
   assert.notEqual(chaveCompra(a), chaveCompra(t({ amount: 4 })))
+  // Dois cafés de R$ 3 no mesmo dia são compras diferentes.
+  assert.notEqual(chaveCompra(a), chaveCompra(t({ date: '2026-10-07T20:00:00.001Z' })))
 })
