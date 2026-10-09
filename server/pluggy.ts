@@ -1,6 +1,6 @@
 // Sincronização com a Pluggy (Meu Pluggy / Open Finance): busca as transações recentes das conexões em
 // PLUGGY_ITEM_IDS, guarda cada uma em pluggy_transacoes e lança as compras do cartão de crédito do Nubank
-// (regras em src/lib/pluggy.ts). Roda pelo webhook da Pluggy, pela função agendada e sob demanda.
+// (regras em src/lib/pluggy.ts). Roda pelo webhook da Pluggy e sob demanda.
 // Idempotente: transação já vista (pelo id) é pulada; a mesma compra com id novo é reconhecida pela chave.
 import type { InStatement } from '@libsql/client/web'
 import { db } from './db.ts'
@@ -158,7 +158,7 @@ export async function sincronizarPluggy(opcoes: { dias?: number; simular?: boole
         if (id) lancamentoPorChave.set(chave, id)
       }
     } catch (e) {
-      // Outra rodada (webhook × agendada) gravou a mesma transação ao mesmo tempo: a transação inteira
+      // Outra rodada (dois avisos do webhook seguidos) gravou a mesma transação ao mesmo tempo: a transação inteira
       // é desfeita, então nada duplica.
       if (!/UNIQUE|PRIMARY KEY|constraint/i.test(String((e as Error).message))) throw e
     }
