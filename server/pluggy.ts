@@ -4,7 +4,7 @@
 // Idempotente: transação já vista (pelo id) é pulada; a mesma compra com id novo é reconhecida pela chave.
 import type { InStatement } from '@libsql/client/web'
 import { db } from './db.ts'
-import { chaveCompra, classificar, parear, dataSP, type Classificacao, type PluggyConta, type PluggyTransacao } from '../src/lib/pluggy.ts'
+import { chaveCompra, classificar, parear, valorReais, dataSP, type Classificacao, type PluggyConta, type PluggyTransacao } from '../src/lib/pluggy.ts'
 
 const BASE = 'https://api.pluggy.ai'
 
@@ -115,7 +115,7 @@ export async function sincronizarPluggy(opcoes: { dias?: number; simular?: boole
       sql: `INSERT INTO pluggy_transacoes (id, item_id, conta_id, chave, data, descricao, valor_centavos, status, motivo, lancamento_id, bruto, importada_em)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${lancamento === 'novo' ? 'last_insert_rowid()' : '?'}, ?, ?)`,
       args: [
-        t.id, itemId, conta.id, chave, dataSP(t.date), t.description ?? '', Math.round(t.amount * 100), status, motivo,
+        t.id, itemId, conta.id, chave, dataSP(t.date), t.description ?? '', Math.round(valorReais(t) * 100), status, motivo,
         ...(lancamento === 'novo' ? [] : [lancamento]), JSON.stringify(t), agora,
       ],
     })

@@ -15,6 +15,11 @@ test('compra à vista no cartão vira lançamento na data de São Paulo', () => 
   })
 })
 
+test('compra internacional entra pelo valor em reais, não em dólar', () => {
+  const c = classificar(cartao, t({ description: 'Anthropic* Claude Sub', amount: 107.35, amountInAccountCurrency: 570.69, currencyCode: 'USD' }), 1)
+  assert.equal(c.acao === 'lancar' && c.valor_centavos, 57069)
+})
+
 test('iCloud (R$ 5,90 na apple.com) é Fixo', () => {
   const c = classificar(cartao, t({ description: 'Apple.Com/Bill', amount: 5.9 }), 1)
   assert.equal(c.acao === 'lancar' && c.tipo, 'Fixo')

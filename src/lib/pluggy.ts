@@ -18,7 +18,9 @@ export interface PluggyTransacao {
   accountId: string
   date: string // ISO
   description: string
-  amount: number
+  amount: number // na moeda da compra (USD numa compra internacional)
+  amountInAccountCurrency?: number | null // em reais, quando a compra foi em outra moeda
+  currencyCode?: string
   type: 'DEBIT' | 'CREDIT' | string
   status?: string
   category?: string | null
@@ -45,6 +47,10 @@ export type Classificacao =
 /** Data no fuso de São Paulo (a Pluggy manda ISO em UTC). */
 export const dataSP = (iso: string) => new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
 
+/** Valor em reais: compra internacional vem com `amount` em dólar e o valor em reais à parte. */
+export const valorReais = (t: PluggyTransacao) =>
+  t.currencyCode && t.currencyCode !== 'BRL' && t.amountInAccountCurrency != null ? t.amountInAccountCurrency : t.amount
+
 /** "Amazonmktplc*Mtechcome 6/6" → "Amazonmktplc*Mtechcome". */
 const semParcela = (s: string) => s.replace(/\s+\d{1,2}\/\d{1,2}\s*$/, '').trim()
 
@@ -54,8 +60,8 @@ const semParcela = (s: string) => s.replace(/\s+\d{1,2}\/\d{1,2}\s*$/, '').trim(
  */
 export function classificar(conta: PluggyConta, t: PluggyTransacao, fechamento: number): Classificacao {
   if (conta.type !== 'CREDIT') return { acao: 'ignorar', motivo: 'conta corrente: sem regra de lançamento ainda' }
-  const centavos = Math.round(Math.abs(t.amount) * 100)
-  if (t.type === 'CREDIT' || t.amount < 0) {
+  const centavos = Math.round(Math.abs(valorReais(t)) * 100)
+  if (t.type === 'CREDIT' || valorReais(t) < 0) {
     if (/pagamento recebido/i.test(t.description) || /credit card payment/i.test(t.category ?? ''))
       return { acao: 'ignorar', motivo: 'pagamento de fatura' }
     return { acao: 'revisar', motivo: 'crédito no cartão (estorno?)' }
@@ -121,4 +127,4 @@ export function parear<L extends { id: number; data: string; valor_centavos: num
  * e número da parcela.
  */
 export const chaveCompra = (t: PluggyTransacao) =>
-  `${t.accountId}|${Math.round(Math.abs(t.amount) * 100)}|${t.creditCardMetadata?.purchaseDate || t.creditCardMetadata?.transactionDateTime || t.date}|${t.creditCardMetadata?.installmentNumber ?? ''}`
+  `${t.accountId}|${Math.round(Math.abs(valorReais(t)) * 100)}|${t.creditCardMetadata?.purchaseDate || t.creditCardMetadata?.transactionDateTime || t.date}|${t.creditCardMetadata?.installmentNumber ?? ''}`
