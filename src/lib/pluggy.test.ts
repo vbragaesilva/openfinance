@@ -41,11 +41,22 @@ test('1ª parcela fica na data da compra', () => {
   assert.equal(c.acao === 'lancar' && c.data, '2026-07-05')
 })
 
-test('pagamento de fatura, conta corrente e IOF não são lançados', () => {
+test('pagamento de fatura e conta corrente não são lançados; outro crédito fica para revisar', () => {
   assert.equal(classificar(cartao, t({ description: 'Pagamento recebido', amount: -2707.27, type: 'CREDIT' }), 1).acao, 'ignorar')
-  assert.equal(classificar(cartao, t({ description: 'Estorno de compra', amount: -21.5, type: 'CREDIT' }), 1).acao, 'revisar')
-  assert.equal(classificar(cartao, t({ description: 'IOF gerado por compra em moeda estrangeira', amount: 19.97 }), 1).acao, 'revisar')
+  assert.equal(classificar(cartao, t({ description: 'Crédito de cashback', amount: -5, type: 'CREDIT' }), 1).acao, 'revisar')
   assert.equal(classificar(corrente, t({ accountId: 'b1', amount: -37 }), 1).acao, 'ignorar')
+})
+
+test('estorno entra negativo', () => {
+  assert.deepEqual(classificar(cartao, t({ date: '2026-09-23T12:00:00.001Z', description: 'Estorno de compra', amount: -21.5, type: 'CREDIT' }), 1), {
+    acao: 'lancar', data: '2026-09-23', local: 'Estorno de compra', valor_centavos: -2150, tipo: 'Variável', parcela: null,
+  })
+})
+
+test('IOF de compra internacional entra separado, com local "IOF"', () => {
+  assert.deepEqual(classificar(cartao, t({ date: '2026-09-22T08:30:08.372Z', description: 'IOF gerado por compra em moeda estrangeira', amount: 19.97 }), 1), {
+    acao: 'lancar', data: '2026-09-22', local: 'IOF', valor_centavos: 1997, tipo: 'Variável', parcela: null,
+  })
 })
 
 const avista = (data: string, v = 300) => ({ acao: 'lancar' as const, data, local: '', valor_centavos: v, tipo: 'Variável' as const, parcela: null })

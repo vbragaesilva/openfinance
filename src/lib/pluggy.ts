@@ -1,7 +1,7 @@
 // Regras da sincronização com a Pluggy (Open Finance pelo Meu Pluggy). Funções puras, sem rede nem banco.
 //
-// Por enquanto só compras no cartão de crédito viram lançamento (o que a antiga automação do Nubank fazia).
-// Pagamento de fatura, estornos, conta corrente, Pix etc. ficam guardados sem lançar até ganharem regra.
+// Por enquanto só o cartão de crédito vira lançamento: compras, IOF (separado) e estornos (negativos).
+// Pagamento de fatura, conta corrente, Pix etc. ficam guardados sem lançar até ganharem regra.
 import { fixoPelaCompra } from './nubank.ts'
 import type { Tipo } from './tipos.ts'
 
@@ -30,6 +30,7 @@ export interface PluggyTransacao {
     transactionDateTime?: string | null
     installmentNumber?: number | null
     totalInstallments?: number | null
+    feeTypeAdditionalInfo?: string | null
   } | null
 }
 
@@ -64,11 +65,19 @@ export function classificar(conta: PluggyConta, t: PluggyTransacao, fechamento: 
   if (t.type === 'CREDIT' || valorReais(t) < 0) {
     if (/pagamento recebido/i.test(t.description) || /credit card payment/i.test(t.category ?? ''))
       return { acao: 'ignorar', motivo: 'pagamento de fatura' }
-    return { acao: 'revisar', motivo: 'crédito no cartão (estorno?)' }
+    // Estorno entra negativo, como já era lançado à mão. A Pluggy não diz de qual compra ele é.
+    if (/estorno/i.test(t.description) && centavos > 0) {
+      const local = semParcela(t.merchant?.name?.trim() || t.description)
+      return { acao: 'lancar', data: dataSP(t.date), local, valor_centavos: -centavos, tipo: 'Variável', parcela: null }
+    }
+    return { acao: 'revisar', motivo: 'crédito no cartão que não é estorno nem pagamento' }
   }
   if (centavos === 0) return { acao: 'ignorar', motivo: 'valor zero' }
-  // IOF de compra internacional vem como transação separada; até hoje não foi lançado à parte.
-  if (/^iof\b/i.test(t.description)) return { acao: 'revisar', motivo: 'IOF (sem regra ainda)' }
+  // IOF de compra internacional vem como transação separada, sem dizer de qual compra: entra como
+  // lançamento próprio, com local "IOF" (decisão do usuário, 2026-10-09).
+  if (/^iof\b/i.test(t.description) || /^IOF/.test(t.creditCardMetadata?.feeTypeAdditionalInfo ?? '')) {
+    return { acao: 'lancar', data: dataSP(t.date), local: 'IOF', valor_centavos: centavos, tipo: 'Variável', parcela: null }
+  }
 
   const local = semParcela(t.merchant?.name?.trim() || t.description)
   const md = t.creditCardMetadata
