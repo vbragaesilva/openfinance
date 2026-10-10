@@ -94,16 +94,23 @@ Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API
 
 Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira lançamento positivo na plataforma do Splitwise, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado e aparece para revisar na página Lançamentos. Toda notificação é salva crua na tabela `notificacoes`, com o status e o lançamento criado.
 
-### Nubank por notificação (desativado)
+### Nubank por notificação (iOS 27)
 
-Desativado em 09/10/2026 a pedido do usuário: `POST /api/lancamentos/notificacao` responde 410 e não grava nada. As notificações já recebidas continuam em `notificacoes_nubank` (`npm run db:nubank` mostra). O leitor de "Compra no crédito aprovada" segue em `src/lib/nubank.ts`.
+Automação "Ao receber notificação do Nubank" → `POST /api/lancamentos/notificacao` com `{"titulo", "subtitulo", "mensagem"}`. Toda notificação fica guardada em `notificacoes_nubank` (JSON exato em `corpo`). Regras de lançamento (`src/lib/nubank.ts`):
+
+- **"Compra no crédito aprovada"** ("Compra de R$ X APROVADA em LOJA para o cartão com final 1234.") vira lançamento na plataforma do cartão (integração `nubank-credito` ou, sem ela, a plataforma "Crédito Nubank"), com local = loja, data = dia da notificação, sem categoria. Exatamente R$ 5,90 na apple.com entra como Fixo (iCloud).
+- O resto (fatura fechada, promoções, Pix, débito...) só fica guardado até ganhar regra.
+
+`npm run db:nubank` mostra as notificações; `npm run db:nubank -- --lancar` lança as compras guardadas antes do leitor existir.
+
+Com a Pluggy ligada (abaixo), a compra que a notificação lançou na hora é reconhecida quando chega pela Pluggy, cerca de um dia depois, e só ligada a ela, sem duplicar. O passo a passo para montar o atalho está em [`docs/atalho-nubank.md`](docs/atalho-nubank.md).
 
 ### Open Finance pela Pluggy (Meu Pluggy)
 
 As compras no cartão de crédito do Nubank entram sozinhas, lidas do Open Finance pela [Pluggy](https://pluggy.ai) com o conector gratuito Meu Pluggy (`server/pluggy.ts`; regras em `src/lib/pluggy.ts`):
 
 - **Lança** cada compra no cartão (à vista, Pix no crédito, parcelas) na plataforma "Crédito Nubank", com a loja como local, sem produto nem categoria. R$ 5,90 na apple.com = Fixo. A parcela 1 fica na data da compra; as seguintes, no dia de fechamento do mês em que caem.
-- **Liga sem duplicar** a compra que já estava lançada (à mão ou pela antiga notificação): mesmo valor e mesmo dia; se não houver, o lançamento do dia anterior (compra depois da meia-noite); parcela seguinte, o mesmo mês. Cada lançamento liga com uma compra só, e os pares do mesmo dia são feitos antes, então o café de hoje nunca pega o lançamento do café de ontem.
+- **Liga sem duplicar** a compra que já estava lançada (à mão ou pela notificação do Nubank): mesmo valor e mesmo dia; se não houver, o lançamento do dia anterior (compra depois da meia-noite); parcela seguinte, o mesmo mês. Cada lançamento liga com uma compra só, e os pares do mesmo dia são feitos antes, então o café de hoje nunca pega o lançamento do café de ontem.
 - **Estorno** entra negativo e **IOF** de compra internacional entra como lançamento próprio (local "IOF"): a Pluggy não diz a qual compra cada um se refere. Compra internacional entra pelo valor em reais.
 - **Só guarda**: pagamento de fatura, outros créditos no cartão ("revisar"), conta corrente/Pix e o Inter. Tudo vai cru para a tabela `pluggy_transacoes`, com o status.
 

@@ -4,6 +4,7 @@ import { cookieLogout, iguais, login, modoAuth, sessaoValida, tokenApiValido } f
 import { sincronizarPluggy } from './pluggy.ts'
 import { brl, lerValor } from '../src/lib/formato.ts'
 import { lerNotificacao } from '../src/lib/splitwise.ts'
+import { lerNotificacaoNubank } from '../src/lib/nubank.ts'
 import type { Dados, Plataforma } from '../src/lib/tipos.ts'
 
 type Campo =
@@ -384,10 +385,57 @@ async function rotear(req: Request, contexto: Contexto): Promise<Response> {
   if (partes[0] === 'fixos') return rotasFixos(req, partes.slice(1))
   if (partes[0] === 'plataformas') return rotasPlataformas(req, partes.slice(1))
 
-  // Notificação do Nubank vinda do atalho do iPhone: desativada a pedido do usuário (2026-10-09).
-  // Não lança nem guarda nada; o histórico em notificacoes_nubank continua no banco.
+  // Notificação do Nubank vinda do atalho do iPhone. Sempre guarda crua; "Compra no crédito
+  // aprovada" também vira lançamento na plataforma do cartão (ver src/lib/nubank.ts).
   if (partes[0] === 'lancamentos' && partes[1] === 'notificacao' && metodo === 'POST') {
-    return json({ mensagem: 'Integração do Nubank por notificação desativada.' }, 410)
+    const bruto = await req.text()
+    let c: Record<string, unknown> = {}
+    try {
+      const v = JSON.parse(bruto)
+      if (v && typeof v === 'object' && !Array.isArray(v)) c = v as Record<string, unknown>
+    } catch {
+      // Guarda mesmo se não for JSON válido: o corpo cru é o que interessa nesta fase.
+    }
+    const campo = (k: string) => (c[k] == null ? null : String(c[k]))
+    const n = { titulo: campo('titulo') ?? '', subtitulo: campo('subtitulo') ?? '', mensagem: campo('mensagem') ?? '' }
+    const agora = agoraSP()
+    const registro = (status: string, comLancamento: boolean): InStatement => ({
+      sql: `INSERT INTO notificacoes_nubank (recebida_em, titulo, subtitulo, mensagem, corpo, status, lancamento_id)
+            VALUES (?, ?, ?, ?, ?, ?, ${comLancamento ? 'last_insert_rowid()' : 'NULL'})`,
+      args: [agora, campo('titulo'), campo('subtitulo'), campo('mensagem'), bruto.slice(0, 20_000), status],
+    })
+    const leitura = lerNotificacaoNubank(n)
+    if (leitura.tipo === 'credito') {
+      // Plataforma do cartão: marcada com integracao = 'nubank-credito' ou, sem marca, pelo nome.
+      const plataformas = await carregarPlataformas().catch(bancoDesatualizado)
+      const cartao =
+        plataformas.find((p) => p.integracao === 'nubank-credito') ??
+        plataformas.find((p) => p.nome.toLowerCase() === 'crédito nubank')
+      if (cartao) {
+        const data = agora.slice(0, 10)
+        await db().batch(
+          [
+            {
+              sql: `INSERT INTO lancamentos (criado_em, data, produto, local, valor_centavos, categoria, plataforma_id, tipo)
+                    VALUES (?, ?, '', ?, ?, NULL, ?, ?)`,
+              args: [agora, data, leitura.local, leitura.valor_centavos, cartao.id, leitura.fixo],
+            },
+            registro('lancada', true),
+          ],
+          'write',
+        )
+        return json(
+          {
+            mensagem: `Lançado: ${brl(leitura.valor_centavos)} · ${leitura.local} (${cartao.nome}${leitura.fixo === 'Fixo' ? ', Fixo' : ''}) · ${data.split('-').reverse().join('/')}`,
+          },
+          201,
+        )
+      }
+      await db().execute(registro('revisar', false))
+      return json({ mensagem: 'Compra do Nubank guardada, sem lançar: não achei a plataforma "Crédito Nubank".' }, 202)
+    }
+    await db().execute(registro(leitura.tipo, false))
+    return json({ mensagem: `Notificação do Nubank guardada (${leitura.tipo === 'revisar' ? leitura.motivo : 'sem regra de lançamento'}).` }, 202)
   }
 
   // Notificação do Splitwise vinda do atalho do iPhone: guarda crua e, se entender, lança na
