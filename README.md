@@ -94,6 +94,10 @@ Com a variável `API_TOKEN` na Netlify, a API aceita `Authorization: Bearer <API
 
 Automação "Ao receber notificação do Splitwise" → `POST /api/split/notificacao` com `{"titulo", "subtitulo", "mensagem"}` da notificação. A API lê o texto (`src/lib/splitwise.ts`): "Você deve BRL X" vira lançamento positivo na plataforma do Splitwise, "Você recebeu de volta BRL X" vira negativo; o resto (acertos, edições) só fica guardado e aparece para revisar na página Lançamentos. Toda notificação é salva crua na tabela `notificacoes`, com o status e o lançamento criado.
 
+### Splitwise pelo site (skill sincronizar-splitwise)
+
+O que você mesmo adiciona no Splitwise não gera notificação. Para isso existe a skill do Claude Code `.claude/skills/sincronizar-splitwise`, que roda `npm run splitwise:sincronizar` na sua máquina: lê as despesas no Splitwise web pelo [api-anything](https://github.com/goodnight000/api-anything) (com a sessão do seu Chrome), mostra o que falta no banco e se o saldo do Splitwise bate com os splits, e só grava com `--gravar` depois do seu ok. Regras em `src/lib/splitwise-despesas.ts`; o que já foi visto fica em `splitwise_despesas`. Só olha despesas criadas a partir de 11/10/2026 (antes disso o banco foi dado como certo). As operações do api-anything ficam em `integracoes/splitwise.api-anything.json` (sem cookies); a sessão se renova com `api-anything login splitwise.com`.
+
 ### Nubank por notificação (iOS 27)
 
 Automação "Ao receber notificação do Nubank" → `POST /api/lancamentos/notificacao` com `{"titulo", "subtitulo", "mensagem"}`. Toda notificação fica guardada em `notificacoes_nubank` (JSON exato em `corpo`). Regras de lançamento (`src/lib/nubank.ts`):
