@@ -1,0 +1,197 @@
+{
+  "name": "splitwise",
+  "baseUrl": "https://secure.splitwise.com",
+  "operations": [
+    {
+      "name": "despesas",
+      "request": {
+        "method": "GET",
+        "url": "https://secure.splitwise.com/api/v3.0/get_expenses?visible=true&order=date&dated_after=%7Bdesde%7D&limit=%7Blimite%7D&offset=%7Boffset%7D",
+        "headers": {
+          "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/jxl,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+          "priority": "u=0, i",
+          "sec-ch-ua": "\"Google Chrome\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"macOS\"",
+          "sec-fetch-dest": "document",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-site": "none",
+          "sec-fetch-user": "?1",
+          "upgrade-insecure-requests": "1",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+        }
+      },
+      "slots": [
+        {
+          "param": "desde",
+          "at": [
+            "query:dated_after"
+          ]
+        },
+        {
+          "param": "limite",
+          "at": [
+            "query:limit"
+          ]
+        },
+        {
+          "param": "offset",
+          "at": [
+            "query:offset"
+          ]
+        }
+      ],
+      "volatile": [],
+      "trigger": {
+        "url": "https://secure.splitwise.com/api/v3.0/get_expenses?visible=true&order=date&dated_after={desde}&limit={limite}&offset={offset}"
+      },
+      "match": {
+        "path": "/api/v3.0/get_expenses"
+      },
+      "response": {
+        "format": "json",
+        "contentType": "application/json; charset=utf-8",
+        "extract": "expenses",
+        "pick": [
+          "id",
+          "grupo=group_id",
+          "descricao=description",
+          "pagamento=payment",
+          "custo=cost",
+          "moeda=currency_code",
+          "data=date",
+          "criada=created_at",
+          "atualizada=updated_at",
+          "apagada=deleted_at",
+          "usuarios=users[*].user_id",
+          "saldos=users[*].net_balance"
+        ]
+      },
+      "params": [
+        {
+          "name": "desde",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "limite",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "offset",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "readOnly": true,
+      "minTier": 1,
+      "learnedLoggedIn": true,
+      "learnedAt": "2026-10-11T19:56:35.792Z"
+    },
+    {
+      "name": "amigos",
+      "request": {
+        "method": "GET",
+        "url": "https://secure.splitwise.com/api/v3.0/get_friends",
+        "headers": {
+          "accept": "application/json, text/javascript, */*; q=0.01",
+          "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+          "priority": "u=1, i",
+          "referer": "https://secure.splitwise.com/",
+          "sec-ch-ua": "\"Google Chrome\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"macOS\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-origin",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+          "x-csrf-token": "",
+          "x-requested-with": "XMLHttpRequest"
+        }
+      },
+      "slots": [
+        {
+          "ref": "session:amigos/x-csrf-token",
+          "at": [
+            "header:x-csrf-token"
+          ]
+        }
+      ],
+      "volatile": [],
+      "trigger": {
+        "url": "https://secure.splitwise.com/#/all"
+      },
+      "match": {
+        "path": "/api/v3.0/get_friends"
+      },
+      "response": {
+        "format": "json",
+        "contentType": "application/json; charset=utf-8",
+        "extract": "friends",
+        "pick": [
+          "id",
+          "nome=first_name",
+          "saldo=balance"
+        ]
+      },
+      "params": [],
+      "readOnly": true,
+      "minTier": 1,
+      "learnedLoggedIn": true,
+      "learnedAt": "2026-10-11T19:56:53.430Z"
+    },
+    {
+      "name": "eu",
+      "request": {
+        "method": "GET",
+        "url": "https://secure.splitwise.com/api/v3.0/get_main_data?no_expenses=1&limit=3&cachebust=0.4302471374857223",
+        "headers": {
+          "accept": "*/*",
+          "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+          "priority": "u=1, i",
+          "referer": "https://secure.splitwise.com/",
+          "sec-ch-ua": "\"Google Chrome\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"macOS\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-origin",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+          "x-csrf-token": "",
+          "x-requested-with": "XMLHttpRequest"
+        }
+      },
+      "slots": [
+        {
+          "ref": "session:eu/x-csrf-token",
+          "at": [
+            "header:x-csrf-token"
+          ]
+        }
+      ],
+      "volatile": [],
+      "trigger": {
+        "url": "https://secure.splitwise.com/#/all"
+      },
+      "match": {
+        "path": "/api/v3.0/get_main_data"
+      },
+      "response": {
+        "format": "json",
+        "contentType": "application/json; charset=utf-8",
+        "extract": "user",
+        "pick": [
+          "id",
+          "nome=first_name"
+        ]
+      },
+      "params": [],
+      "readOnly": true,
+      "minTier": 1,
+      "learnedLoggedIn": true,
+      "learnedAt": "2026-10-11T19:58:35.734Z"
+    }
+  ]
+}

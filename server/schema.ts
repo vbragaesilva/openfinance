@@ -124,6 +124,23 @@ export const SCHEMA: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS pluggy_transacoes_chave ON pluggy_transacoes (chave)`,
 
+  // Despesas do Splitwise vistas pela skill sincronizar-splitwise (scripts/splitwise-sincronizar.ts), uma
+  // linha por id do Splitwise, com o JSON cru. `valor_centavos` é o split (o que eu devo; negativo = recebo).
+  // status: 'lancada' (criou `lancamento_id`), 'ja_existia' (ligada a um lançamento que já existia; duas
+  // despesas podem apontar para o mesmo lançamento quando foram somadas à mão) ou 'ignorada'.
+  `CREATE TABLE IF NOT EXISTS splitwise_despesas (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    descricao TEXT NOT NULL DEFAULT '',
+    valor_centavos INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    motivo TEXT,
+    lancamento_id INTEGER,
+    atualizada_em TEXT NOT NULL,
+    bruto TEXT NOT NULL,
+    importada_em TEXT NOT NULL
+  )`,
+
   // "Caixa Atual" (saldo da conta) que era digitado à mão em cada bloco de mês do PAINEL.
   `CREATE TABLE IF NOT EXISTS caixa_mensal (
     ano INTEGER NOT NULL,
