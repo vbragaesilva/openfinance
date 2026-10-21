@@ -1,8 +1,9 @@
 // Análises (o que a pizza do PAINEL e a CreditoDinamica mostravam para o crédito), por mês, ano ou
 // tudo. Entram as plataformas marcadas "nas análises" em Configurações.
-import { chaveMes, ehFixo, mesDoLancamento } from './painel.ts'
+import { chaveMes, ehFixo, mesDaTela, mesDoLancamento } from './painel.ts'
 import type { Dados, Lancamento } from './tipos.ts'
 
+// O ano do período 'ano' é o da tela (ver mesDaTela): 2027 vai de dezembro/2026 a novembro/2027.
 export type Periodo = { tipo: 'mes'; ano: number; mes: number } | { tipo: 'ano'; ano: number } | { tipo: 'tudo' }
 
 export const SEM_CATEGORIA = 'Sem categoria'
@@ -17,12 +18,14 @@ export function rotuloAnalises(dados: Dados): string {
 
 /** Lançamentos analisados do período. `semFixos` tira o que já está nos fixos. */
 export function lancamentosDoPeriodo(dados: Dados, periodo: Periodo, semFixos: boolean): Lancamento[] {
-  const prefixo =
-    periodo.tipo === 'mes' ? chaveMes(periodo.ano, periodo.mes) : periodo.tipo === 'ano' ? `${periodo.ano}-` : ''
+  const noPeriodo = (k: string) =>
+    periodo.tipo === 'mes' ? k === chaveMes(periodo.ano, periodo.mes)
+    : periodo.tipo === 'ano' ? mesDaTela(Number(k.slice(0, 4)), Number(k.slice(5, 7))).ano === periodo.ano
+    : true
   const ids = idsNasAnalises(dados)
   const mesDe = mesDoLancamento(dados)
   return dados.lancamentos.filter(
-    (l) => ids.has(l.plataforma_id) && mesDe(l).startsWith(prefixo) && !(semFixos && ehFixo(l)),
+    (l) => ids.has(l.plataforma_id) && noPeriodo(mesDe(l)) && !(semFixos && ehFixo(l)),
   )
 }
 

@@ -25,6 +25,13 @@ export const diasNoMes = (ano: number, mes: number) => new Date(ano, mes, 0).get
 
 export const chaveMes = (ano: number, mes: number) => `${ano}-${String(mes).padStart(2, '0')}`
 
+/**
+ * Nome do mês na tela: cada mês aparece com o nome do seguinte (o gasto e o salário de outubro
+ * aparecem em "Novembro 2026"; dezembro vira "Janeiro" do ano seguinte). Só o nome muda: as contas,
+ * o fechamento e o que fica no banco seguem o mês de sempre.
+ */
+export const mesDaTela = (ano: number, mes: number) => (mes === 12 ? { ano: ano + 1, mes: 1 } : { ano, mes: mes + 1 })
+
 /** Mês (AAAA-MM) em que uma compra conta: antes do dia de fechamento, conta no mês anterior. */
 export function mesDaCompra(data: string, fechamento: number): string {
   if (Number(data.slice(8, 10)) >= fechamento) return data.slice(0, 7)
@@ -205,16 +212,20 @@ export function ritmoDoMes(dados: Dados, r: ResumoMes): PontoRitmo[] {
   return pontos
 }
 
-/** Meses a mostrar na visão do ano: do primeiro mês com lançamento até dezembro. */
-export function mesesDoAno(dados: Dados, ano: number, hoje: Hoje): number[] {
+/**
+ * Meses a mostrar na visão do ano, pelo ano da tela (ver mesDaTela): de dezembro do ano anterior
+ * a novembro, a partir do primeiro mês com lançamento.
+ */
+export function mesesDoAno(dados: Dados, ano: number, hoje: Hoje): { ano: number; mes: number }[] {
+  const idx = (a: number, m: number) => a * 12 + m - 1
+  const de = idx(ano - 1, 12)
+  const ate = idx(ano, 11)
   const mesDe = mesDoLancamento(dados)
-  const meses = dados.lancamentos
-    .map(mesDe)
-    .filter((m) => m.startsWith(`${ano}-`))
-    .map((m) => Number(m.slice(5, 7)))
-  if (ano === hoje.ano) meses.push(hoje.mes)
-  const primeiro = meses.length ? Math.min(...meses) : 1
-  return Array.from({ length: 13 - primeiro }, (_, i) => primeiro + i)
+  const usados = dados.lancamentos.map(mesDe).map((k) => idx(Number(k.slice(0, 4)), Number(k.slice(5, 7))))
+  usados.push(idx(hoje.ano, hoje.mes))
+  const dentro = usados.filter((i) => i >= de && i <= ate)
+  const primeiro = dentro.length ? Math.min(...dentro) : de
+  return Array.from({ length: ate - primeiro + 1 }, (_, i) => ({ ano: Math.floor((primeiro + i) / 12), mes: ((primeiro + i) % 12) + 1 }))
 }
 
 // ---- FIXOS

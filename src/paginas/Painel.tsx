@@ -6,7 +6,7 @@ import { Dinheiro, SeletorMes } from '../componentes/ui.tsx'
 import { useEstado } from '../estado.tsx'
 import { brl, lerValor, mesCurto, nomeMes, valorParaCampo } from '../lib/formato.ts'
 import { lancamentosDoPeriodo, ordemCategorias, porCategoria, rotuloAnalises } from '../lib/analises.ts'
-import { mesesDoAno, resumoMes, ritmoDoMes, type ResumoMes } from '../lib/painel.ts'
+import { mesDaTela, mesesDoAno, resumoMes, ritmoDoMes, type ResumoMes } from '../lib/painel.ts'
 
 function Status({ r }: { r: ResumoMes }) {
   if (r.diasParaLiberar === 'PARE!') {
@@ -109,9 +109,10 @@ export function Painel() {
     () => porCategoria(lancamentosDoPeriodo(dados, { tipo: 'mes', ano: mesSel.ano, mes: mesSel.mes }, false)),
     [dados, mesSel],
   )
+  const anoTela = mesDaTela(mesSel.ano, mesSel.mes).ano
   const ano = useMemo(
-    () => mesesDoAno(dados, mesSel.ano, hoje).map((m) => resumoMes(dados, mesSel.ano, m, hoje)),
-    [dados, mesSel.ano, hoje],
+    () => mesesDoAno(dados, anoTela, hoje).map((m) => resumoMes(dados, m.ano, m.mes, hoje)),
+    [dados, anoTela, hoje],
   )
   const [abrirNumeros] = useState(() => matchMedia('(min-width: 760px)').matches)
   // As marcadas "no painel" aparecem uma a uma; as outras contam no Gasto numa linha só.
@@ -236,7 +237,7 @@ export function Painel() {
       </div>
 
       <section className="cartao">
-        <h3>{mesSel.ano}</h3>
+        <h3>{anoTela}</h3>
         <div className="tabela-rolavel">
           <table className="tabela">
             <thead>
@@ -251,14 +252,14 @@ export function Painel() {
             <tbody>
               {ano.map((m) => (
                 <tr
-                  key={m.mes}
-                  className={m.mes === mesSel.mes ? 'selecionada' : ''}
+                  key={`${m.ano}-${m.mes}`}
+                  className={m.ano === mesSel.ano && m.mes === mesSel.mes ? 'selecionada' : ''}
                   onClick={() => setMesSel({ ano: m.ano, mes: m.mes })}
                 >
                   <td>
                     <button type="button" className="link-linha" onClick={() => setMesSel({ ano: m.ano, mes: m.mes })}>
-                      <span className="so-desktop">{nomeMes(m.mes)}</span>
-                      <span className="so-celular">{mesCurto(m.mes)}</span>
+                      <span className="so-desktop">{nomeMes(mesDaTela(m.ano, m.mes).mes)}</span>
+                      <span className="so-celular">{mesCurto(mesDaTela(m.ano, m.mes).mes)}</span>
                     </button>
                   </td>
                   <td className="num"><Dinheiro centavos={m.gasto} /></td>

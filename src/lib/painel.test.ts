@@ -193,7 +193,9 @@ test('fechamento: compra antes do dia de fechamento conta no mês anterior', () 
   assert.equal(total(out, CREDITO).total, 100000)
   assert.equal(out.gasto, 100007)
   assert.deepEqual(lancamentosDoMes(d, 2026, 8).map((l) => l.valor_centavos), [100])
-  assert.deepEqual(mesesDoAno(d, 2026, hoje), [8, 9, 10, 11, 12])
+  // Ano 2026 da tela: de dezembro/2025 a novembro/2026 (dezembro/2026 aparece como janeiro/2027).
+  assert.deepEqual(mesesDoAno(d, 2026, hoje).map((m) => m.mes), [8, 9, 10, 11])
+  assert.deepEqual(mesesDoAno(d, 2027, hoje), [{ ano: 2026, mes: 12 }, ...Array.from({ length: 11 }, (_, i) => ({ ano: 2027, mes: i + 1 }))])
   // No ritmo de setembro, a compra de 04/10 entra no último dia.
   const ritmo = ritmoDoMes(d, set)
   assert.equal(ritmo[28].gastoAcumulado, 1000)

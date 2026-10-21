@@ -4,10 +4,13 @@ import { Campo, CampoValor, Dinheiro, Erro, Folha, SeletorMes } from '../compone
 import { useEstado, type MesSel } from '../estado.tsx'
 import { dataCurta, hojeISO, lerValor, mesCurto, nomeMes, valorParaCampo } from '../lib/formato.ts'
 import {
-  chaveMes, fixosDoMes, pagamentoNoMes, proximoVencimento, salarioDoMes, statusFixos, type FixoNoMes,
+  chaveMes, fixosDoMes, mesDaTela, pagamentoNoMes, proximoVencimento, salarioDoMes, statusFixos, type FixoNoMes,
 } from '../lib/painel.ts'
 
-const rotuloMes = (chave: string) => `${mesCurto(Number(chave.slice(5, 7)))}/${chave.slice(2, 4)}`
+// Nomes como na tela (ver mesDaTela): o mês de outubro aparece como "Novembro".
+const nomeNaTela = ({ ano, mes }: MesSel) => `${nomeMes(mesDaTela(ano, mes).mes)} ${mesDaTela(ano, mes).ano}`
+const curtoNaTela = ({ ano, mes }: MesSel) => `${mesCurto(mesDaTela(ano, mes).mes)}/${String(mesDaTela(ano, mes).ano).slice(2)}`
+const rotuloMes = (chave: string) => curtoNaTela({ ano: Number(chave.slice(0, 4)), mes: Number(chave.slice(5, 7)) })
 const mesAnterior = ({ ano, mes }: MesSel) => (mes === 1 ? chaveMes(ano - 1, 12) : chaveMes(ano, mes - 1))
 
 /** Executa uma ação de escrita com estado de envio e mensagem de erro. */
@@ -56,7 +59,7 @@ function FormNovoFixo(props: { mes: MesSel; onPronto: () => void }) {
         <input type="checkbox" checked={investimento} onChange={(e) => setInvestimento(e.target.checked)} />
         É o investimento do mês (usado no “Invest. proj.” do painel)
       </label>
-      <p className="campo-dica">Começa a contar em {nomeMes(props.mes.mes)} {props.mes.ano}; meses anteriores não mudam.</p>
+      <p className="campo-dica">Começa a contar em {nomeNaTela(props.mes)}; meses anteriores não mudam.</p>
       <Erro erro={erro} />
       <div className="acoes-form">
         <button className="btn primario" disabled={salvando}>{salvando ? 'Salvando…' : 'Adicionar'}</button>
@@ -93,7 +96,7 @@ function FormFixo(props: { item: FixoNoMes; mes: MesSel; onPronto: () => void })
         <input id="f-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
       </Campo>
       <Campo
-        rotulo={`Valor a partir de ${nomeMes(props.mes.mes)} ${props.mes.ano}`}
+        rotulo={`Valor a partir de ${nomeNaTela(props.mes)}`}
         htmlFor="f-valor"
         dica="Meses anteriores continuam com o valor que tinham."
       >
@@ -165,7 +168,7 @@ function FormFixo(props: { item: FixoNoMes; mes: MesSel; onPronto: () => void })
             disabled={salvando}
             onClick={() => executar(() => api.atualizarFixo(fixo.id, { fim: mesAnterior(props.mes) }), props.onPronto)}
           >
-            Confirmar: some a partir de {mesCurto(props.mes.mes)}/{String(props.mes.ano).slice(2)}
+            Confirmar: some a partir de {curtoNaTela(props.mes)}
           </button>
         ) : confirmar === 'apagar' ? (
           <button
@@ -234,7 +237,7 @@ function Salario({ mes }: { mes: MesSel }) {
         </button>
       )}
       <span className="mudo">
-        {editando ? `vale a partir de ${mesCurto(mes.mes)}/${String(mes.ano).slice(2)}` : atual ? `desde ${rotuloMes(atual.desde)}` : 'sem salário neste mês'}
+        {editando ? `vale a partir de ${curtoNaTela(mes)}` : atual ? `desde ${rotuloMes(atual.desde)}` : 'sem salário neste mês'}
       </span>
       <Erro erro={erro} />
       {dados.salarios.length > 1 && (
@@ -319,7 +322,7 @@ export function Fixos() {
                         : ultimo
                           ? `último pagamento ${dataCurta(ultimo.data)}/${ultimo.data.slice(2, 4)}`
                           : 'nunca pago'}
-                      {ehMesAtual && prox && ` · próximo: ${nomeMes(prox.mes)}`}
+                      {ehMesAtual && prox && ` · próximo: ${nomeMes(mesDaTela(prox.ano, prox.mes).mes)}`}
                       {item.desde > fixo.inicio && ` · valor desde ${rotuloMes(item.desde)}`}
                     </span>
                   </span>
@@ -349,7 +352,7 @@ export function Fixos() {
         foram definidos em diante, então mudar algo aqui não altera meses anteriores.
       </p>
 
-      <Folha titulo={`Novo fixo · ${nomeMes(mesSel.mes)} ${mesSel.ano}`} aberta={novo} onFechar={() => setNovo(false)}>
+      <Folha titulo={`Novo fixo · ${nomeNaTela(mesSel)}`} aberta={novo} onFechar={() => setNovo(false)}>
         {novo && <FormNovoFixo mes={mesSel} onPronto={() => setNovo(false)} />}
       </Folha>
       <Folha titulo="Editar fixo" aberta={editando != null} onFechar={() => setEditandoId(null)}>

@@ -6,7 +6,7 @@ import {
   evolucaoMensal, lancamentosDoPeriodo, maioresCompras, ordemCategorias, porCategoria, rotuloAnalises, topLocais, type Periodo,
 } from '../lib/analises.ts'
 import { brl, dataCurta, mesCurto, nomeMes } from '../lib/formato.ts'
-import { mesDoLancamento } from '../lib/painel.ts'
+import { mesDaTela, mesDoLancamento } from '../lib/painel.ts'
 
 type TipoPeriodo = Periodo['tipo']
 
@@ -14,10 +14,11 @@ export function Analises() {
   const { dados, hoje, mesSel, setMesSel } = useEstado()
   const [tipo, setTipo] = useState<TipoPeriodo>('mes')
   const [semFixos, setSemFixos] = useState(false)
+  const tela = mesDaTela(mesSel.ano, mesSel.mes)
 
   const periodo = useMemo<Periodo>(
-    () => (tipo === 'mes' ? { tipo, ano: mesSel.ano, mes: mesSel.mes } : tipo === 'ano' ? { tipo, ano: mesSel.ano } : { tipo }),
-    [tipo, mesSel.ano, mesSel.mes],
+    () => (tipo === 'mes' ? { tipo, ano: mesSel.ano, mes: mesSel.mes } : tipo === 'ano' ? { tipo, ano: tela.ano } : { tipo }),
+    [tipo, mesSel.ano, mesSel.mes, tela.ano],
   )
 
   const ordem = useMemo(() => ordemCategorias(dados), [dados])
@@ -27,10 +28,10 @@ export function Analises() {
   const meses = useMemo(
     () =>
       evolucaoMensal(
-        lancamentosDoPeriodo(dados, tipo === 'tudo' ? { tipo: 'tudo' } : { tipo: 'ano', ano: mesSel.ano }, semFixos),
+        lancamentosDoPeriodo(dados, tipo === 'tudo' ? { tipo: 'tudo' } : { tipo: 'ano', ano: tela.ano }, semFixos),
         mesDoLancamento(dados),
       ),
-    [dados, tipo, mesSel.ano, semFixos],
+    [dados, tipo, tela.ano, semFixos],
   )
   const locais = useMemo(() => topLocais(lancs), [lancs])
   const maiores = useMemo(() => maioresCompras(lancs), [lancs])
@@ -40,7 +41,7 @@ export function Analises() {
   const categoriasTabela = ordem.filter((c) => meses.some((m) => m.porCategoria.has(c)))
   const maxCelula = Math.max(1, ...meses.flatMap((m) => [...m.porCategoria.values()]))
   const destaque = tipo === 'mes' ? `${mesSel.ano}-${String(mesSel.mes).padStart(2, '0')}` : undefined
-  const titulo = tipo === 'mes' ? `${nomeMes(mesSel.mes)} ${mesSel.ano}` : tipo === 'ano' ? String(mesSel.ano) : 'Tudo'
+  const titulo = tipo === 'mes' ? `${nomeMes(tela.mes)} ${tela.ano}` : tipo === 'ano' ? String(tela.ano) : 'Tudo'
   const analisadas = rotuloAnalises(dados)
 
   if (!analisadas) {
@@ -70,7 +71,7 @@ export function Analises() {
         {tipo === 'ano' && (
           <div className="seletor-mes">
             <button type="button" className="btn-icone" onClick={() => setMesSel({ ...mesSel, ano: mesSel.ano - 1 })} aria-label="Ano anterior">‹</button>
-            <span className="seletor-mes-rotulo">{mesSel.ano}</span>
+            <span className="seletor-mes-rotulo">{tela.ano}</span>
             <button type="button" className="btn-icone" onClick={() => setMesSel({ ...mesSel, ano: mesSel.ano + 1 })} aria-label="Próximo ano">›</button>
           </div>
         )}
@@ -137,7 +138,7 @@ export function Analises() {
                   <th>Categoria</th>
                   {meses.map((m) => (
                     <th key={m.chave} className={`num ${m.chave === destaque ? 'destaque' : ''}`}>
-                      {mesCurto(m.mes)}
+                      {mesCurto(mesDaTela(m.ano, m.mes).mes)}
                     </th>
                   ))}
                   <th className="num">Total</th>

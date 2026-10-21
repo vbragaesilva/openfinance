@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Fatia, MesCategorias } from '../lib/analises.ts'
 import { brl, mesCurto } from '../lib/formato.ts'
+import { mesDaTela } from '../lib/painel.ts'
 
 const MAX_CORES = 8
 
@@ -152,8 +153,8 @@ export function ColunasMensais(props: {
                   </text>
                 )}
                 <text className={`eixo ${props.destaque === mes.chave ? 'eixo-forte' : ''}`} x={cx} y={ALTURA - 6} textAnchor="middle">
-                  {mesCurto(mes.mes)}
-                  {mostrarAno && mes.mes === 1 ? ` ${String(mes.ano).slice(2)}` : ''}
+                  {mesCurto(mesDaTela(mes.ano, mes.mes).mes)}
+                  {mostrarAno && mes.mes === 12 ? ` ${String(mes.ano + 1).slice(2)}` : ''}
                 </text>
                 <rect
                   className="alvo"
@@ -162,7 +163,7 @@ export function ColunasMensais(props: {
                   width={banda}
                   height={h + M.bottom}
                   tabIndex={0}
-                  aria-label={`${mesCurto(mes.mes)} ${mes.ano}: ${brl(mes.total)}`}
+                  aria-label={`${mesCurto(mesDaTela(mes.ano, mes.mes).mes)} ${mesDaTela(mes.ano, mes.mes).ano}: ${brl(mes.total)}`}
                   onPointerEnter={() => setHover(i)}
                   onPointerDown={() => setHover(i)}
                   onFocus={() => setHover(i)}
@@ -180,7 +181,7 @@ export function ColunasMensais(props: {
             style={{ left: Math.min(Math.max(M.left + banda * hover + banda / 2, 100), largura - 100), top: 0 }}
           >
             <div className="tooltip-titulo">
-              {mesCurto(m.mes)} {m.ano} · {brl(m.total)}
+              {mesCurto(mesDaTela(m.ano, m.mes).mes)} {mesDaTela(m.ano, m.mes).ano} · {brl(m.total)}
             </div>
             {empilhar
               .filter((c) => (m.porCategoria.get(c) ?? 0) > 0)

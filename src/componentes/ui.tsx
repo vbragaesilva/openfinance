@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { brl, nomeMes, valorParaCampo, lerValor } from '../lib/formato.ts'
 import type { MesSel } from '../estado.tsx'
+import { mesDaTela } from '../lib/painel.ts'
 
 /** Modal: bottom sheet no celular, caixa centralizada no desktop. */
 export function Folha(props: { titulo: string; aberta: boolean; onFechar: () => void; children: ReactNode }) {
@@ -41,6 +42,7 @@ export function SeletorMes(props: { valor: MesSel; onChange: (m: MesSel) => void
     const idx = ano * 12 + (mes - 1) + delta
     props.onChange({ ano: Math.floor(idx / 12), mes: (idx % 12) + 1 })
   }
+  const tela = mesDaTela(ano, mes)
   const ehHoje = props.hoje && props.hoje.ano === ano && props.hoje.mes === mes
   return (
     <div className="seletor-mes">
@@ -48,7 +50,7 @@ export function SeletorMes(props: { valor: MesSel; onChange: (m: MesSel) => void
         ‹
       </button>
       <span className="seletor-mes-rotulo">
-        {nomeMes(mes)} <span className="mudo">{ano}</span>
+        {nomeMes(tela.mes)} <span className="mudo">{tela.ano}</span>
       </span>
       <button type="button" className="btn-icone" onClick={() => mover(1)} aria-label="Próximo mês">
         ›
